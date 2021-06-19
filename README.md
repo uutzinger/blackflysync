@@ -64,7 +64,7 @@ Channels can be disabled/enabled.
 
 ## Example System Settings
 ```
-Frequency: 585937.500000 Hz
+Frequency: 50000.000000 Hz
 Duty: +0.000 percent
 Resolution:  8 bit
 CPU: 600 MHz
@@ -75,6 +75,9 @@ Camera Trigger: 21
 Power Switch: 20
 State is: Auto
 ```
+
+Currently working on channel 2 which is attached to pin 2.  
+The PWM frequency is 50kHz (same for all pins), the Duty Cycle on pin 2 is 0% which turns off the LED and PWM on this pin is disabled.
 
 ## PWM Maximum Values
 ```
