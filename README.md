@@ -74,3 +74,66 @@ Camera Trigger: 21
 Power Switch: 20
 State is: Auto
 ```
+
+## PWM Maximum Values
+```
+Resolution:  2 bit, Frequency: 37500000.000000
+Resolution:  3 bit, Frequency: 18750000.000000
+Resolution:  4 bit, Frequency: 9375000.000000
+Resolution:  5 bit, Frequency: 4687500.000000
+Resolution:  6 bit, Frequency: 2343750.000000
+Resolution:  7 bit, Frequency: 1171875.000000
+Resolution:  8 bit, Frequency: 585937.500000
+Resolution:  9 bit, Frequency: 292968.750000
+Resolution: 10 bit, Frequency: 146484.375000
+Resolution: 11 bit, Frequency: 73242.187500
+Resolution: 12 bit, Frequency: 36621.089844
+Resolution: 13 bit, Frequency: 18310.550781
+Resolution: 14 bit, Frequency: 9155.269531
+Resolution: 15 bit, Frequency: 4577.640137
+Resolution: 16 bit, Frequency: N.A.
+```
+
+## Available pins
+```
+Pin:  0, PWM
+Pin:  1, PWM
+Pin:  2, PWM
+Pin:  3, PWM
+Pin:  4, PWM
+Pin:  5, PWM
+Pin:  6, PWM
+Pin:  7, PWM
+Pin:  8, PWM
+Pin:  9, PWM
+Pin: 10, PWM
+Pin: 11, PWM
+Pin: 12, PWM
+Pin: 13, PWM
+Pin: 14, PWM
+Pin: 15, PWM
+Pin: 16, N.A.
+Pin: 17, N.A.
+Pin: 18, PWM
+Pin: 19, PWM
+Pin: 20, N.A.
+Pin: 21, N.A.
+Pin: 22, PWM
+Pin: 23, PWM
+Pin: 24, PWM
+Pin: 25, PWM
+Pin: 26, N.A.
+Pin: 27, N.A.
+Pin: 28, PWM
+Pin: 29, PWM
+Pin: 30, N.A.
+Pin: 31, N.A.
+Pin: 32, N.A.
+Pin: 33, PWM
+Pin: 34, PWM
+Pin: 35, PWM
+Pin: 36, PWM
+Pin: 37, PWM
+Pin: 38, PWM
+Pin: 39, PWM
+```
