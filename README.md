@@ -44,5 +44,33 @@ Channels can be disabled/enabled.
 ```
 
 ## Example Channel Configuration
+```
+ 0 Pin:  2 Duty: +5.000 Enabled: Yes
+ 1 Pin:  3 Duty: +5.000 Enabled: Yes
+ 2 Pin:  4 Duty: +5.000 Enabled: Yes
+ 3 Pin:  5 Duty: +5.000 Enabled: Yes
+ 4 Pin:  6 Duty: +5.000 Enabled: Yes
+ 5 Pin:  7 Duty: +5.000 Enabled: Yes
+ 6 Pin:  8 Duty: +5.000 Enabled: Yes
+ 7 Pin:  9 Duty: +5.000 Enabled: Yes
+ 8 Pin: 10 Duty: +5.000 Enabled: Yes
+ 9 Pin: 11 Duty: +5.000 Enabled: Yes
+10 Pin: 12 Duty: +5.000 Enabled: Yes
+11 Pin: 14 Duty: +5.000 Enabled: Yes
+12 Pin: 15 Duty: +5.000 Enabled: Yes
+13 Pin: 99 Duty: +0.000 Enabled: Yes
+```
 
 ## Example System Settings
+```
+Frequency: 585937.500000 Hz
+Duty: +0.000 percent
+Resolution:  8 bit
+CPU: 600 MHz
+PWM Max:  255
+Pin:  2 Disabled
+Channel: 2
+Camera Trigger: 21
+Power Switch: 20
+State is: Auto
+```
