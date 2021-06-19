@@ -27,7 +27,7 @@ Channels can be disabled/enabled.
   S0   save channel 0 from current working settings
   -------------------------------------------------
   c21  set camera trigger to pin 21
-  o0   set on/off button to pin 20"
+  o0   set on/off button to pin 20
   -------------------------------------------------
   a/A  disable/enable Auto Advance 
   m/M  disable/enable PWM pin 
@@ -42,3 +42,7 @@ Channels can be disabled/enabled.
   Shannon McCoy, Urs Utzinger, 2020-21");
   -------------------------------------------------
 ```
+
+## Example Channel Configuration
+
+## Example System Settings
