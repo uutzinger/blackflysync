@@ -1,10 +1,12 @@
 # Blackfly Camera to LED sync
-This software is developed for Teensy 4.z.
+This software is developed for Teensy 4.x.  
 It sets the power of illumination LEDs for a camera that provides frame trigger.  
-It has 13 channels and autoadvances to next channel after each frame trigger.  
-Each channel is composed of dutycycle and the hardware pin it is associate with.
-Autoadvancing can be disabled.
-Channels can be disabled/enabled.
+Without additional hardware this software is likely not useful.
+
+Up to 13 channels can be configured.
+When auto advances is enabled each frame trigger turns off current LED channel and activates next one.
+Each channel is composed of dutycycle and the hardware pin it is associated with.
+Individual channels can be disabled/enabled.
 13th Channel is used to take image with all LEDs off.
 
 ## Example Work Flow
