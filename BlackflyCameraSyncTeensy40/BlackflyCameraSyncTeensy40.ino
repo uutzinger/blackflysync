@@ -10,7 +10,7 @@
 //
 // Requirements
 // ------------
-// This sofware requires a Teensy 3.x Microcontroller.
+// This sofware requires a Teensy 4.x Microcontroller.
 //
 // Setup
 // -----
@@ -20,8 +20,7 @@
 //
 // Operation
 // ---------
-// This code cycles through 13 LEDs (+1 spare), 12 of which are PWM capable with the other 
-// being only digitally capable, upon an external source from a Blackfly camera. 
+// This code cycles through 13 LEDs (+1 spare), upon an external sync source from a Blackfly camera. 
 // The camera provides a trigger on the GPIO line, letting the teensy know that a picture is 
 // about to be taken. Through this GPIO signal, the camera and microcontroller are able to 
 // to synchronize the camera images to the 13 LED light sources.
@@ -143,8 +142,8 @@ EEPROMsettings mySettings;         // the settings
 // ------------------------------------------------------------------------
 #define POLL_INTERVAL          10000    // desired main loop time in microseconds 
 #define CHECKINPUT_INTERVAL    50000    // interval in microseconds between polling serial input
-#define LEDON_INTERVAL        300000    // interval in microseconds between turning LED on/off for status report
-#define LEDOFF_INTERVAL       700000    // interval in microseconds between turning LED on/off for status report
+#define LEDON_INTERVAL        100000    // interval in microseconds between turning LED on/off for status report
+#define LEDOFF_INTERVAL       900000    // interval in microseconds between turning LED on/off for status report
 // *********************************************************************************************//
 unsigned long pollInterval;                    //
 unsigned long lastInAvail;                     //
@@ -333,8 +332,11 @@ void loop(){
 // Frame Trigger Interrupt Service Routine
 //
 // Turns off current LED
+//  analgoWrite(pin,0) takes 2.5-3 microseconds on Teensy 3.2
 // Checks if LED is enabled
 // Turns on next LED
+//  analgoWrite(pin,some value > 0) takes 5-6 microseconds on Teensy 3.2
+// if current LED is highest channel, do not turn on/off anything
 //////////////////////////////////////////////////////////////////
 void frameISR() {
   switch (myState)  {
@@ -342,18 +344,13 @@ void frameISR() {
       // do nothing
       break;
     case Auto:
-      if (ch < NUMLEDS-1) { 
-        analogWrite(LEDs[ch], uint16_t(0)); // Turn off the current LED
-      } else {
-        // do nothing, was background measurement
-      }
+      // Turn off current LED
+      if (ch < NUMLEDS-1) { analogWrite(LEDs[ch], uint16_t(0)); } 
+      // increment channel
       ch = (ch + 1)%NUMLEDS;// Increment LED channel to next index
       while (LEDsEnable[ch] == false) {ch = (ch + 1)%NUMLEDS;}  // Get the ch to the next LED that is part of the cycle sequence
-      if (ch < NUMLEDS-1) { // keep last channel for background
-        analogWrite(LEDs[ch], uint16_t(DutyCycle[ch]*PWM_MaxValue/100.0));  
-      } else {
-        // do nothing for background measurement
-      }
+      // Turn on next LED
+      if (ch < NUMLEDS-1) { analogWrite(LEDs[ch], uint16_t(DutyCycle[ch]*PWM_MaxValue/100.0)); }
       break;
     case Manual:
       // do nothing
@@ -490,9 +487,10 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("s0   load channel 0 to current working settings");
   Serial.println("S0   save channel 0 from current working settings");
+  Serial.println("save to EEPROM to make presistant");
   Serial.println("-------------------------------------------------");
   Serial.println("c21  set camera trigger to pin 21");
-  Serial.println("o0   set on/off button to pin 20");
+  Serial.println("o0   set on/off button to pin 20, -1 = disabled");
   Serial.println("-------------------------------------------------");
   Serial.println("a/A  disable/enable Auto Advance"); 
   Serial.println("m/M  disable/enable PWM pin"); 
@@ -584,7 +582,7 @@ void processInstruction(String instruction) {
     if ((tempInt < -1) || (tempInt > 39)) { // check boundaries
       Serial.println("Power Button out of valid Range.");
     } else {
-      if (PowerSwitch >= 0) { detachInterrupt(digitalPinToInterrupt(PowerSwitch)); } // remove powerswitch interrupt only if no disabled
+      if (PowerSwitch >= 0) { detachInterrupt(digitalPinToInterrupt(PowerSwitch)); } // remove powerswitch interrupt only if not disabled
       PowerSwitch = tempInt;
       if (PowerSwitch >= 0) { // attach interrupt if powerswitch is not -1
         pinMode(PowerSwitch, INPUT_PULLUP);

@@ -1,5 +1,5 @@
 # Blackfly Camera to LED sync
-This software is developed for Teensy 4.x.  
+This software is developed for Teensy 4.x or 3.2.
 It controls an external light source for a camera.
 The frame trigger of the camera is used to advance to next illumination color.  
 The lightsource intensity is adjusted using PWM modulation.  
@@ -7,11 +7,11 @@ For a 500 frames/second camera and using PWM frequency of 50kHz will result in 1
 Without additional hardware this software is likely not useful.  
 
 Up to 13 channels can be configured.
-When auto advances is enabled each frame trigger turns off current LED channel and activates next one.
+When auto advances is enabled each frame trigger first turns off current LED channel and activates next one.
 Each channel is composed of dutycycle and the control pin on the Teensy board.
 Individual channels can be disabled/enabled.
-13th Channel is used to take an image with all LEDs off.
-A button can be attached to disable all lights. The button will need to create a conenction to ground when pressed.
+If the 14th Channel is enabled an image will be taken with all LEDs off.
+A button can be attached to disable all lights. The button will need to create a conenction to ground when pressed. If the button pin is set to -1, this feature is disabled.
 
 ## Example Work Flow
   - Disable Auto Advance: a
