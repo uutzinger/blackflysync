@@ -8,19 +8,21 @@ Without additional hardware this software is likely not useful.
 
 Up to 13 channels can be configured.
 When auto advances is enabled each frame trigger first turns off current LED channel and activates next one.
-Each channel is composed of dutycycle and the control pin on the Teensy board.
+Each channel has pin associated.
 Individual channels can be disabled/enabled.
 If the 14th Channel is enabled an image will be taken with all LEDs off.
 A button can be attached to disable all lights. The button will need to create a conenction to ground when pressed. If the button pin is set to -1, this feature is disabled.
 
 ## Example Work Flow
   - Disable Auto Advance: a
-  - Load working channel from EEPROM: e.g. s0
-  - Adjust working channel:
-    - p: set the pin associated to current channel
     - f: set the PWM frequency
     - d: set the duty cycle
     - r: resolution in bits
+    - C: set PWM pin
+  - Load working channel from EEPROM: e.g. s0
+  - Adjust working channel:
+    - enable/disable channel
+    - p: set the pin associated to current channel
   - Save working channel: s
   - Enable Auto Advance: A
   - Save channel configurations to EEPROM: E
