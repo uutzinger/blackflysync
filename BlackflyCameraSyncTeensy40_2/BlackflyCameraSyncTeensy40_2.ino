@@ -15,8 +15,6 @@
 // Setup
 // -----
 // The Camera Line 2 will need to be programmed to be the Frame Sync
-// Lin2   Pin7
-// All PWM pins and one software PWM pin (7) can be configured
 //
 // Operation
 // ---------
@@ -123,19 +121,19 @@ volatile long  lastInterrupt; // Keeping track
 #include <EEPROM.h>
 #define EEPROM_SIZE 2048 // Max size
 int eepromAddress = 0;   // Where storage starts
-struct EEPROMsettings {            // Setting structure
-  byte         valid;              // First time use of EEPROM?
-  states       myState;            // Whater to be in Autoadvance or Manual or Off Mode
-  int          LEDs[NUMLEDS];      // Which pins are the LEDs attached
+struct EEPROMsettings {             // Setting structure
+  byte         valid;               // First time use of EEPROM?
+  states       myState;             // Whater to be in Autoadvance or Manual or Off Mode
+  int          LEDs[NUMLEDS];       // Which pins are the LEDs attached
   bool         LEDsEnable[NUMLEDS]; // Is this LED channel used
   float        DutyCycle;           // Duty cycle (ie 10 = 10% duty cycle)
-  float        PWM_Frequency;       //
+  float        PWM_Frequency;       // 
   unsigned int PWM_Resolution;      //
-  int          CameraTrigger;       //
-  int          PowerSwitch;         //
-  int          CLK_Pin;
+  int          CameraTrigger;       // Input pin for trigger
+  int          PowerSwitch;         // Input pin for on/off optional
+  int          CLK_Pin;             // Output pin for PWM signal
   };
-EEPROMsettings mySettings;         // the settings
+EEPROMsettings mySettings;          // the settings
 
 // *********************************************************************************************//
 // Intervals and Timing
@@ -239,8 +237,7 @@ void setup(){
   pinMode(CameraTrigger, INPUT_PULLUP);
   pinMode(PowerSwitch,   INPUT_PULLUP); // initialize pin for power switch
 
-  // PWM
-  // Start PWM at 0% output
+  // Set PWM source
   // void setupPWM(uint16_t PWM_Pin, float PWM_MaxFreq, float PWM_Duty, unsigned int PWM_Resolution);
   setupPWM(CLK_Pin,  PWM_Frequency, DutyCycle, PWM_Resolution);
 
@@ -371,16 +368,14 @@ void onOff() {
 // Support Functions                                                                            //
 // *********************************************************************************************//
 
-// Teensy 3.2 realtion between PWM frequency and PWM resolution
+// Teensy 4.0 realtion between PWM frequency and PWM resolution
 //////////////////////////////////////////////////////////////////
 float GetMaxPWMFreqValue(long FREQ, int PWM_Resolution)
 {
   /* for Teensy CPU frequencies are
       24MHZ
-      396MHZ
-      450MHZ
-      528MHZ
-      600MHZ
+      396MHZ & 450MHZ
+      528MHZ & 600MHZ
   */
   // FlexPWM 4.482kHz
   // QuadTimer 3.611kHz
@@ -488,7 +483,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("c21  set camera trigger to pin 21");
   Serial.println("C22  set PWM Clock to pin 22");
-  Serial.println("o0   set on/off button to pin 20, -1 = disabled");
+  Serial.println("o20  set on/off button to pin 20, -1 = disabled");
   Serial.println("-------------------------------------------------");
   Serial.println("a/A  disable/enable Auto Advance"); 
   Serial.println("m/M  disable/enable channel"); 
@@ -515,6 +510,7 @@ void printSystemInformation() {
   Serial.printf( "Channel: %d\n", ch);
   Serial.printf( "Camera Trigger: %d\n", CameraTrigger);
   Serial.printf( "Power Switch: %d\n", PowerSwitch);
+  Serial.printf( "PWM pin: %d\n", CLK_Pin);
   Serial.print(  "State is: ");
   if (myState == Off)    { Serial.println("Off"); }
   if (myState == Auto)   { Serial.println("Auto"); }
