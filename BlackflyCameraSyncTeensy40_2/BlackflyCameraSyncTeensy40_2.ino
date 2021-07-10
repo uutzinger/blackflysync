@@ -418,7 +418,7 @@ boolean isPWM(uint8_t mypin) {
 
 boolean isIO(uint8_t mypin) {
   const uint8_t last = 31; // number of pins -1
-  const uint8_t iopins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39};
+  const uint8_t iopins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39};
   return std::binary_search(iopins, &iopins[last], mypin);
 }
 
@@ -642,7 +642,7 @@ void processInstruction(String instruction) {
 
   } else if (command == 'm') { // turn off PWM
     // ENABLE/DISABLE PWM //////////////////////////////////////////////////////////
-    if (isIO(PWM_Pin)) {
+    if (isIO(PWM_Pin) || (PWM_Pin == 99)) {
       digitalWriteFast(LEDs[ch],  HIGH);
       PWM_Enabled = false;
       Serial.println("off");
@@ -651,7 +651,7 @@ void processInstruction(String instruction) {
       Serial.println(" is not a PWM pin.");
     }
   } else if (command == 'M') { // turn on PWM
-    if (isIO(PWM_Pin)) {
+    if (isIO(PWM_Pin) || (PWM_Pin==99)) {
       digitalWriteFast(LEDs[ch],  LOW);
       PWM_Enabled = true;
       Serial.println("on");
@@ -682,7 +682,7 @@ void processInstruction(String instruction) {
       tempInt = value.toInt();      
       if ((tempInt >=0) || (tempInt < NUMLEDS)) {      
         ch = tempInt;
-        LEDs[ch]      = PWM_Pin;
+        LEDs[ch]       = PWM_Pin;
         LEDsEnable[ch] = PWM_Enabled;       
       } else { Serial.println("Channel out of valid Range.");   }
       
