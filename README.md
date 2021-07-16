@@ -159,8 +159,8 @@ Pin: 27, DIO
 Pin: 28, PWM
 Pin: 29, PWM
 Pin: 30, DIO
-Pin: 31, N.A.
-Pin: 32, N.A.
+Pin: 31, DIO
+Pin: 32, DIO
 Pin: 33, PWM
 Pin: 34, PWM
 Pin: 35, PWM
