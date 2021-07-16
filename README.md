@@ -1,15 +1,17 @@
 # Blackfly Camera to LED sync
-This software is developed for Teensy 4.x or 3.2.
-It controls an external light source for a camera.
-The frame trigger of the camera is used to advance to next illumination color.  
+This software is developed for Teensy 4.x or 3.2.  
+It controls an external light source for a camera.  
+The frame trigger of the camera is used to advance to the next illumination color.  
 The lightsource intensity is adjusted using PWM modulation.  
 For a 500 frames/second camera and using PWM frequency of 50kHz will result in 100 light pulses per frame.  
-Without additional hardware this software is likely not useful.  
 
-Up to 13 channels can be configured.
+This software is desgined for a FET driver and FET power switch. A FET driver usually has an enable/disable input. The gate of the driver is conencted to a PWM clock and the individual channel is enabled through the enable/disable input. Without such hardware this software is likely not useful.
+
+Up to 13 channels are configured but more can be added.  
 When auto advances is enabled each frame trigger first turns off current LED channel and activates next one.
-Each channel has pin associated.
-Individual channels can be disabled/enabled.
+Each channel has a pin associated on the microcontroller.  
+There is one common PWM signal for all LEDs on one pin of the microcontroller.    
+Individual channels can be disabled/enabled in software.
 If the 14th Channel is enabled an image will be taken with all LEDs off.
 A button can be attached to disable all lights. The button will need to create a conenction to ground when pressed. If the button pin is set to -1, this feature is disabled.
 
@@ -72,20 +74,38 @@ A button can be attached to disable all lights. The button will need to create a
 
 ## Example System Settings
 ```
-Frequency: 50000.000000 Hz
-Duty: +0.000 percent
-Resolution:  8 bit
-CPU: 600 MHz
-PWM Max:  255
-Pin:  2 Disabled
-Channel: 2
-Camera Trigger: 21
-Power Switch: 20
-State is: Auto
+Software version:     1.0
+CPU:                  600 MHz
+PWM pin:              22
+Frequency:            50000.000000.1 Hz
+Duty:                 +5.000 percent
+Resolution:            8 bit
+PWM Max:               255
+Camera trigger is on: 21
+Power switch:         0
+-------------------------------------------------
+State is:             Manual
+-------------------------------------------------
+Working on channel: 2 using pin:  2 which is off
+-------------------------------------------------
+Channel:  0 pin:  2 Enabled: No
+Channel:  1 pin:  3 Enabled: No
+Channel:  2 pin:  4 Enabled: No
+Channel:  3 pin:  5 Enabled: No
+Channel:  4 pin:  6 Enabled: No
+Channel:  5 pin:  7 Enabled: No
+Channel:  6 pin:  8 Enabled: No
+Channel:  7 pin:  9 Enabled: No
+Channel:  8 pin: 10 Enabled: No
+Channel:  9 pin: 11 Enabled: No
+Channel: 10 pin: 12 Enabled: No
+Channel: 11 pin: 14 Enabled: No
+Channel: 12 pin: 15 Enabled: No
+Channel: 13 pin: 99 Enabled: Yes
 ```
 
 Currently working on channel 2 which is attached to pin 2.  
-The PWM frequency is 50kHz (same for all pins), the Duty Cycle on pin 2 is 0% which turns off the LED and PWM on this pin is disabled.
+The PWM frequency is 50kHz (same for all pins), the Duty Cycle on pin 22 is 5%.
 
 ## PWM Maximum Values
 ```
@@ -124,21 +144,21 @@ Pin: 12, PWM
 Pin: 13, PWM
 Pin: 14, PWM
 Pin: 15, PWM
-Pin: 16, N.A.
-Pin: 17, N.A.
+Pin: 16, DIO
+Pin: 17, DIO
 Pin: 18, PWM
 Pin: 19, PWM
-Pin: 20, N.A.
-Pin: 21, N.A.
+Pin: 20, DIO
+Pin: 21, DIO
 Pin: 22, PWM
 Pin: 23, PWM
 Pin: 24, PWM
 Pin: 25, PWM
-Pin: 26, N.A.
-Pin: 27, N.A.
+Pin: 26, DIO
+Pin: 27, DIO
 Pin: 28, PWM
 Pin: 29, PWM
-Pin: 30, N.A.
+Pin: 30, DIO
 Pin: 31, N.A.
 Pin: 32, N.A.
 Pin: 33, PWM
