@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.0"
+#define VERSION "1.0.1"
 #include <iterator>
 #include <algorithm>
 
@@ -101,8 +101,9 @@ volatile states myPreviousState = Off;  // keeping track of previous state
 #define POWERSWITCH      20 // External Button (input)
 // *********************************************************************************************//
 // This depends on the hardware logic of the FET driver and FET of your circuit
-#define TURN_ON 0              // On is 0
-#define TURN_OFF 1             // Off is 1
+#define TURN_ON  HIGH      // On is 0
+#define TURN_OFF LOW       // Off is 1
+#define PWM_INV  true      // PWM needs to be inverted (high = off, low =on)
 
 // *********************************************************************************************//
 // LED channel configuration
@@ -231,7 +232,7 @@ void setup(){
     DutyCycle      = 5.0;        
     for (int i=0; i<NUM_CHANNELS; i++) {
       LEDs[i]       = tmp[i];      
-      LEDsEnable[i] = TURN_OFF; 
+      LEDsEnable[i] = false; 
     }
     myState        = Manual;
   }
@@ -452,12 +453,12 @@ void setupPWM(uint16_t PWM_Pin, float PWM_Freq, float Duty, unsigned int Resolut
     analogWriteFrequency(PWM_Pin, PWM_Freq);
     PWM_Frequency = PWM_Freq;                   // update global
     if ((Duty >= 0.0) && (Duty <= 100.0)) {    
-      if (TURN_ON == 1) {
-        // when off is a low signal
-        analogWrite(PWM_Pin, uint16_t(Duty / 100.0 * float(PWM_MaxValue)));
-      } else {
-        // when off is a high signal we need to invert the duty cycle on the hardware
+      if (PWM_INV) {
+        // PWM signal high turns the LED off
         analogWrite(PWM_Pin, uint16_t((100.0-Duty) / 100.0 * float(PWM_MaxValue)));
+      } else {
+        // PWM signal high turns the LED on
+        analogWrite(PWM_Pin, uint16_t(Duty / 100.0 * float(PWM_MaxValue)));
       }
       DutyCycle = Duty;                          // update global
     }
@@ -683,9 +684,9 @@ void processInstruction(String instruction) {
       Serial.printf("PWM Frequency:   %f\n", PWM_Frequency);
       Serial.printf("Channel:         %s\n", PWM_Enabled?"Enabled":"Disabled");
       if (PWM_Enabled) {
-        if      (isIO(PWM_Pin))     { digitalWriteFast(LEDs[ch],  TURN_ON); Serial.println("on"); }
+        if      (isIO(PWM_Pin))     { digitalWriteFast(LEDs[ch],  TURN_ON);}
       } else {
-        if      (isIO(PWM_Pin))     { digitalWriteFast(LEDs[ch],  TURN_OFF); Serial.println("off"); }
+        if      (isIO(PWM_Pin))     { digitalWriteFast(LEDs[ch],  TURN_OFF);}
       }
     } else { Serial.println("Channel out of valid Range.");   }
   } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
