@@ -1,32 +1,31 @@
 # Blackfly Camera to LED sync
-This software is developed for Teensy 4.x or 3.2.  
-It controls an external light source for a camera.  
-The frame trigger of the camera is used to advance to the next illumination color.  
-The lightsource intensity is adjusted using PWM modulation.  
-For a 500 frames/second camera and using PWM frequency of 50kHz will result in 100 light pulses per frame.  
+This software controls an external light source for a camera that provides a frame trigger. It was developed for Teensy 4.x or 3.2.    
 
-This software is desgined for a FET driver and FET power switch. A FET driver usually has an enable/disable input. The gate of the driver is conencted to a PWM clock and the individual channel is enabled through the enable/disable input. Without such hardware this software is likely not useful.
+The frame trigger of the camera is used to advance to the next illumination color. The lightsource intensity is adjusted using PWM modulation.  Using a 500 frames/second camera and PWM frequency of 50kHz will result in up to 100 light pulses per frame.
 
-Up to 13 channels are configured but more can be added.  
-When auto advances is enabled each frame trigger first turns off current LED channel and activates next one.
-Each channel has a pin associated on the microcontroller.  
-There is one common PWM signal for all LEDs on one pin of the microcontroller.    
-Individual channels can be disabled/enabled in software.
-If the 14th Channel is enabled an image will be taken with all LEDs off.
-A button can be attached to disable all lights. The button will need to create a conenction to ground when pressed. If the button pin is set to -1, this feature is disabled.
+This software is desgined for a custom circuit with a FET driver and FET power switch. The gate of the FET driver is conencted to a PWM clock and the individual channel is enabled through the enable/disable pin. 
+
+Up to 13 channels are configured but more can be added. When auto advances is enabled, each frame trigger first turns off the current LED channel, then activates the next one. Each channel has a pin associated on the microcontroller. There is one common PWM signal for all LEDs. Individual channels can be disabled/enabled in software. 
+
+That last channel (14) serves for background measurements and, when enabled, an image will be taken with all LEDs off. 
+
+A button can be attached to disable all LEDs via software. The button will need to create a conenction to ground when pressed. If the button pin is set to -1, this feature is disabled.
+
+*Urs Utzinger, July, 2021*  
+*Shannon McCoy, 2020, 2021*
 
 ## Example Work Flow
   - Disable Auto Advance: a
-    - f: set the PWM frequency
-    - d: set the duty cycle
-    - r: resolution in bits
-    - C: set PWM pin
+    - f:   set the PWM frequency
+    - r:   resolution in bits
+    - C:   set PWM pin
   - Load working channel from EEPROM: e.g. s0
   - Adjust working channel:
-    - enable/disable channel
-    - p: set the pin associated to current channel
+    - m/M: enable/disable channel
+    - p:   set the pin associated to current channel
+    - d:   set pulse width on the channel
   - Save working channel: s
-  - Enable Auto Advance: A
+  - Enable Auto Advance:  A
   - Save channel configurations to EEPROM: E
 
 ## Help/Configuration
@@ -49,9 +48,6 @@ A button can be attached to disable all lights. The button will need to create a
   d50  set duty cyle to 50%
   f512 set frequency to 512Hz
   r8   set PWM resolution to 8 bits
-  -------------------------------------------------
-  Shannon McCoy, Urs Utzinger, 2020-21");
-  -------------------------------------------------
 ```
 
 ## Example Channel Configuration
@@ -79,14 +75,14 @@ CPU:                  600 MHz
 PWM pin:              22
 Frequency:            50000.000000.1 Hz
 Duty:                 +5.000 percent
-Resolution:            8 bit
-PWM Max:               255
+Resolution:           8 bit
+PWM Max:              255
 Camera trigger is on: 21
-Power switch:         0
+Power switch:         -1
 -------------------------------------------------
 State is:             Manual
 -------------------------------------------------
-Working on channel: 2 using pin:  2 which is off
+Working on channel is on pin 2 which is off
 -------------------------------------------------
 Channel:  0 pin:  2 Enabled: No
 Channel:  1 pin:  3 Enabled: No
