@@ -112,7 +112,7 @@ volatile states myPreviousState = Off;  // keeping track of previous state
 #define NUM_CHANNELS 14
 volatile int             ch = 2;   // Start LED cycle off at LEDs[0]
 volatile int         LEDs[] = {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };// LEDs
-volatile bool  LEDsEnable[] = {true, true, true, true, true, true, true, true, true, true,  true,  true,  true,  true};  // Is channel on or off=false
+volatile bool  LEDsEnable[] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
 volatile float  LEDsInten[] = {5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,    5.,    5.,    5.,    5.};    // PWM in %
 
 // *********************************************************************************************//
