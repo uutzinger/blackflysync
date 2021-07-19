@@ -515,7 +515,7 @@ void printChannels() {
   for (int i=0; i<NUM_CHANNELS; i++) {
     Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
     Serial.printf( " Enabled: %s", LEDsEnable[i]?"Yes":"No"); 
-    Serial.printf( " Duty: %f\n",  LEDsInten[i]"); 
+    Serial.printf( " Duty: %f\n",  LEDsInten[i]); 
   }
 }
 
