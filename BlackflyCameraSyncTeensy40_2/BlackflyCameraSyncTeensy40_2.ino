@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.1.11"
+#define VERSION "1.1.12"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -260,7 +260,7 @@ void setup(){
 
   // Interrupts
   attachInterrupt(digitalPinToInterrupt(CameraTrigger),   frameISR, RISING); // Frame start
-  attachInterrupt(digitalPinToInterrupt(PowerSwitch),        onOff, CHANGE); // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
+  // attachInterrupt(digitalPinToInterrupt(PowerSwitch),        onOff, CHANGE); // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
 
   // House keeping
   lastInAvail = lastInterrupt = nextLEDCheck = micros();
@@ -345,10 +345,9 @@ void loop(){
 
 //////////////////////////////////////////////////////////////////
 void frameISR() {
-  if ( AutoAdvance ) {
-    cli();
+  //if ( AutoAdvance ) {
     // Turn OFF previous LED, skip the background channel
-    if (chCurrent != BACKGROUND_CHANNEL) { digitalWrite(LEDs[chCurrent], TURN_OFF); } 
+    if (chCurrent != BACKGROUND_CHANNEL) { digitalWriteFast(LEDs[chCurrent], TURN_OFF); } 
     // Increment channel
     chCurrent++; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
     // Continue incrementing if channel is disabled
@@ -364,11 +363,10 @@ void frameISR() {
         analogWrite(CLK_Pin, uint16_t(LEDsInten[chCurrent] / 100.0 * float(PWM_MaxValue)));
       }
       */
-      digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
+      digitalWriteFast(LEDs[chCurrent], TURN_ON); // turn on enable pin
     }
-    sei();
     frameTriggerOccured = true;  // signal to main loop
-  }
+  //}
 }
 
 // Button ISR, toggles On/Off state of system
@@ -376,6 +374,7 @@ void frameISR() {
 // turns off all LEDs for Off state
 // Debounces 20ms
 //////////////////////////////////////////////////////////////////
+/*
 void onOff() {
   unsigned long currentTime = micros();
   if (currentTime - lastInterrupt > 20000) {                       // debounce condition, 20ms
@@ -391,7 +390,7 @@ void onOff() {
     lastInterrupt = currentTime;  // keep track of time for debouncing
   }  
 }
-
+*/
 // *********************************************************************************************//
 // Support Functions                                                                            //
 // *********************************************************************************************//
@@ -623,7 +622,7 @@ void processInstruction(String instruction) {
       Serial.printf("PWM Clock attached to: %d\n", CLK_Pin);
     }
 
-  } else if (command == 'o') { // power button
+  } /* else if (command == 'o') { // power button
     // Power Button /////////////////////////////////////////////////////////////
     tempInt = value.toInt();
     if ((tempInt < -1) || (tempInt > 39)) { // check boundaries
@@ -638,7 +637,7 @@ void processInstruction(String instruction) {
       Serial.printf("Power Switch attached to: %d\n", PowerSwitch);
     }
   
-  } else if (command == 'x') { // channel settings
+  } */ else if (command == 'x') { // channel settings
     printChannels();
 
   } else if ( command == 'i') { // system information
