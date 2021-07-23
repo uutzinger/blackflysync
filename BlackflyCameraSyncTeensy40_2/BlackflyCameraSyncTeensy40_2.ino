@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.1.0"
+#define VERSION "1.1.6"
 #define EEPROM_VALID 0xF1
 #include <iterator>
 #include <algorithm>
@@ -76,6 +76,8 @@
 enum states {Manual, Auto, Off};
 volatile states myState = Off;
 volatile states myPreviousState = Off;  // keeping track of previous state
+volatile bool frameTriggerOccured = false;
+
 // *********************************************************************************************//
 
 // *********************************************************************************************//
@@ -110,7 +112,9 @@ volatile states myPreviousState = Off;  // keeping track of previous state
 // LED channel configuration
 // ------------------------------------------------------------------------
 #define NUM_CHANNELS 14
-volatile int             ch = 2;   // Start LED cycle off at LEDs[0]
+int               chWorking = 0;   // current working channel for manual changes
+volatile int     chPrevious = 0;   // keep track of LED that needs to be turned off
+volatile int      chCurrent = 0;   // Start LED cycke at LED[0]
 volatile int         LEDs[] = {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };// LEDs
 volatile bool  LEDsEnable[] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
 volatile float  LEDsInten[] = {5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,    5.,    5.,    5.,    5.};    // PWM in %
@@ -171,12 +175,12 @@ bool ledStatus = false;                  // Led should be off at start up
 // Main System and PWM working variables
 // ------------------------------------------------------------------------
 unsigned int  Pin            = PWM1;          //
-unsigned int  CLK_Pin        = CLK;           //
+volatile unsigned int CLK_Pin= CLK;           //
 bool          PWM_Enabled    = false;         //
 long          CPU_Frequency  = F_CPU / 1E6;   //
 float         PWM_Frequency  = 4577.64;       // Ideal 15 bit and 600MHz Teensy 4.0
 unsigned int  PWM_Resolution = 8;             // 
-unsigned int  PWM_MaxValue   = pow(2, PWM_Resolution)-1;
+volatile unsigned int PWM_MaxValue   = pow(2, PWM_Resolution)-1;
 float         DutyCycle      = 5.0;           //
 int           CameraTrigger  = CAMTRG;        //
 int           PowerSwitch    = POWERSWITCH;   //
@@ -232,7 +236,7 @@ void setup(){
     PWM_Resolution = 8;
     PWM_Frequency  = GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution); 
     PWM_MaxValue   = pow(2,PWM_Resolution)-1;
-    unsigned int  tmp[NUM_CHANNELS] =  {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };   
+    const unsigned int  tmp[NUM_CHANNELS] =  {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };   
     DutyCycle      = 5.0;        
     for (int i=0; i<NUM_CHANNELS; i++) {
       LEDs[i]       = tmp[i];      
@@ -302,20 +306,27 @@ void loop(){
   
   // Blink LED
   //////////////////////////////////////////////////////////////////
-  if (currentTime > nextLEDCheck) {
-    if (ledStatus) {
-      // LED is ON
-      ledStatus = false; 
-      digitalWriteFast(ledPin, ledStatus);                        // turn off
-      nextLEDCheck = currentTime + LEDOFF_INTERVAL;
-    } else {
-      // LED is OFF
-      ledStatus = true;
-      digitalWriteFast(ledPin, ledStatus);                        // turn on
-      nextLEDCheck = currentTime + LEDON_INTERVAL;
+  if (frameTriggerOccured) {
+    ledStatus = bool(~ledStatus);
+    digitalWriteFast(ledPin, ledStatus);
+    frameTriggerOccured = false;
+    nextLEDCheck = currentTime + LEDON_INTERVAL;
+    Serial.printf("Current: %d, Previous %d, Intensity %f, CLK %d\r\n",chCurrent, chPrevious, LEDsInten[chCurrent], CLK_Pin);
+  } else { // regular blinking
+    if (currentTime > nextLEDCheck) {
+      if (ledStatus) {
+        // LED is ON
+        ledStatus = false; 
+        digitalWriteFast(ledPin, ledStatus);                        // turn off
+        nextLEDCheck = currentTime + LEDOFF_INTERVAL;
+      } else {
+        // LED is OFF
+        ledStatus = true;
+        digitalWriteFast(ledPin, ledStatus);                        // turn on
+        nextLEDCheck = currentTime + LEDON_INTERVAL;
+      }
     }
   }
-
 } 
 
 // *********************************************************************************************//
@@ -331,6 +342,82 @@ void loop(){
 // Set intensity
 // Turns on next LED
 // If current LED is highest channel, do not turn on/off anything
+
+/*Auto
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 13, Previous 13, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 0, Previous 0, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Current: 1, Previous 1, Intensity 5.000000, CLK 22
+Pin 2 is off
+*/
 //////////////////////////////////////////////////////////////////
 void frameISR() {
   switch (myState)  {
@@ -338,27 +425,32 @@ void frameISR() {
       // do nothing
       break;
     case Auto:
-      // Turn OFF current LED
-      if (ch < NUM_CHANNELS-1) { digitalWriteFast(LEDs[ch], TURN_OFF); } 
-      // increment channel
-      ch = (ch + 1)%NUM_CHANNELS;
-      while (LEDsEnable[ch] == false) {ch = (ch + 1)%NUM_CHANNELS;}  // search for the next active LED channel
-      // Turn ON next LED
-      if (ch < NUM_CHANNELS-1) { 
+      // Turn OFF previous LED, 
+      // skip the background channel at NUM_CHANNELS-1
+      if (chPrevious < NUM_CHANNELS-1) { digitalWriteFast(LEDs[chPrevious], TURN_OFF); } 
+      // Increment channel
+      chCurrent = (chPrevious + 1)%NUM_CHANNELS;
+      // Continue incrementing if channel is disabled
+      while (LEDsEnable[chCurrent] == false) {chCurrent = (chCurrent + 1)%NUM_CHANNELS;}  // search for the next active LED channel
+      // Turn ON next LED, 
+      // skip background channel at NUM_CHANNELS-1
+      if (chCurrent < NUM_CHANNELS-1) { 
         if (PWM_INV) {
-          // PWM signal high turns the LED off
-          analogWrite(CLK_Pin, uint16_t((100.0-LEDsInten[ch]) / 100.0 * float(PWM_MaxValue)));
+          // PWM signal low turns the LED on
+          analogWrite(CLK_Pin, uint16_t((100.0-LEDsInten[chCurrent]) / 100.0 * float(PWM_MaxValue)));
         } else {
           // PWM signal high turns the LED on
-          analogWrite(CLK_Pin, uint16_t(LEDsInten[ch] / 100.0 * float(PWM_MaxValue)));
-        digitalWriteFast(LEDs[ch],  TURN_ON); 
+          analogWrite(CLK_Pin, uint16_t(LEDsInten[chCurrent] / 100.0 * float(PWM_MaxValue)));
         }
+        digitalWriteFast(LEDs[chCurrent], TURN_ON);
       }
+      chPrevious = chCurrent;
       break;
     case Manual:
       // do nothing
       break;
   }
+  frameTriggerOccured = true;  
 }
 
 // Button ISR, toggles On/Off state of system
@@ -432,7 +524,7 @@ void setupPWM(uint16_t PWM_Pin, float PWM_Freq, float Duty, unsigned int Resolut
     }
     analogWriteFrequency(PWM_Pin, PWM_Freq);
     PWM_Frequency = PWM_Freq;                   // update global
-    if ((Duty >= 0.0) && (Duty <= 100.0)) {    
+    if ( (Duty > ((1./float(PWM_MaxValue))*100.)) && (Duty < 100.0)) {    
       if (PWM_INV) {
         // PWM signal high turns the LED off
         analogWrite(PWM_Pin, uint16_t((100.0-Duty) / 100.0 * float(PWM_MaxValue)));
@@ -440,6 +532,14 @@ void setupPWM(uint16_t PWM_Pin, float PWM_Freq, float Duty, unsigned int Resolut
         // PWM signal high turns the LED on
         analogWrite(PWM_Pin, uint16_t(Duty / 100.0 * float(PWM_MaxValue)));
       }
+      DutyCycle = Duty;                          // update global
+    } else if (Duty <= (1./float(PWM_MaxValue))*100.) {
+        pinMode(PWM_Pin, OUTPUT);
+        if (PWM_INV) { digitalWrite(PWM_Pin,HIGH); } else { digitalWrite(PWM_Pin,LOW); }
+        DutyCycle = Duty;                          // update global
+    } else if (Duty >= 100.0) {
+        pinMode(PWM_Pin, OUTPUT);
+      if (PWM_INV) { digitalWrite(PWM_Pin,LOW); } else { digitalWrite(PWM_Pin,HIGH); }
       DutyCycle = Duty;                          // update global
     }
   } 
@@ -691,29 +791,30 @@ void processInstruction(String instruction) {
     // Load & Save Channel Settings////////////////////////////////////////////////
     tempInt = value.toInt();      
     if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) { // cehck boundaries      
-      ch          = tempInt;
-      Pin         = LEDs[ch];
-      PWM_Enabled = LEDsEnable[ch];
-      DutyCycle   = LEDsInten[ch];
-      Serial.printf("Current Channel: %2d\n",   ch);
+      chWorking   = tempInt;
+      Pin         = LEDs[chWorking];
+      PWM_Enabled = LEDsEnable[chWorking];
+      DutyCycle   = LEDsInten[chWorking];
+      Serial.printf("Current Channel: %2d\n",   chWorking);
       Serial.printf("Pin:             %2d\n",   Pin);
       Serial.printf("PWM Duty:        %4.3f\n", DutyCycle);
       Serial.printf("PWM Frequency:   %f\n",    PWM_Frequency);
       Serial.printf("Channel:         %s\n",    PWM_Enabled?"Enabled":"Disabled");
       if (PWM_Enabled) {
-        if      (isIO(Pin))     { digitalWriteFast(LEDs[ch],  TURN_ON);}
+        if      (isIO(Pin))     { digitalWriteFast(LEDs[chWorking],  TURN_ON);}
       } else {
-        if      (isIO(Pin))     { digitalWriteFast(LEDs[ch],  TURN_OFF);}
+        if      (isIO(Pin))     { digitalWriteFast(LEDs[chWorking],  TURN_OFF);}
       }
     } else { Serial.println("Channel out of valid Range.");   }
   } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
       tempInt = value.toInt();      
       if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) {      
-        ch = tempInt;
-        LEDs[ch]       = Pin;
-        LEDsEnable[ch] = PWM_Enabled;       
-        LEDsInten[ch]  = DutyCycle;       
-      } else { Serial.println("Channel out of valid Range.");   }
+        chWorking = tempInt;
+        LEDs[chWorking]      = Pin;
+        LEDsEnable[chWorking]  = PWM_Enabled;       
+        LEDsInten[chWorking] = DutyCycle;       
+        Serial.printf("Channel %d saved.\r\n",chWorking);
+      } else { Serial.printf("Channel %d out of valid Range.\r\n",chWorking);}
       
   } else if (command == 'd') { // duty cycle
     // SET DUTY CYCLE /////////////////////////////////////////////////////////////
