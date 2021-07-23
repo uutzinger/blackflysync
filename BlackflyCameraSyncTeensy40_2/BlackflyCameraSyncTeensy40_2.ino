@@ -50,10 +50,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.1.7"
-#define EEPROM_VALID 0xF1
+#define VERSION "1.1.11"
+#define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
+#include <avr/io.h>
+#include <avr/interrupt.h>
 
 // *********************************************************************************************//
 // Teensy 4.0 Specifics
@@ -67,15 +69,13 @@
 // QuadTimer 3.611kHz
 
 // *********************************************************************************************//
-// Machine States:
+// ISR States:
 // ------------------------------------------------------------------------
-// Manual:   Work on single PWM channel through USB terminal
-// Auto:     Autoadvance to next channel when external Frame Trigger occurs
-// Off:      PWM output is off
+// Autoadvance:     Autoadvance to next channel when external Frame Trigger occurs
+// No Autoadvance:  Work on single channel
 // ------------------------------------------------------------------------
-enum states {Manual, Auto, Off};
-volatile states myState = Off;
-volatile states myPreviousState = Off;  // keeping track of previous state
+volatile bool AutoAdvance = false;
+volatile bool myPreviousAdvance = false;
 volatile bool frameTriggerOccured = false;
 
 // *********************************************************************************************//
@@ -113,16 +113,16 @@ volatile bool frameTriggerOccured = false;
 // ------------------------------------------------------------------------
 #define NUM_CHANNELS 14
 #define BACKGROUND_CHANNEL 13
-int               chWorking = 0;   // current working channel for manual changes
-volatile int      chCurrent = 0;   // Start LED cycke at LED[0]
-volatile int         LEDs[] = {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };// LEDs
-volatile bool  LEDsEnable[] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
-volatile float  LEDsInten[] = {5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,   5.,    5.,    5.,    5.,    5.};    // PWM in %
+unsigned int                  chWorking = 0;   // current working channel for manual changes
+volatile          int         chCurrent = 0;   // Start LED cycke at LED[0]
+volatile int         LEDs[NUM_CHANNELS] = {PWM1,  PWM2,  PWM3,  PWM4,  PWM5,  PWM6,  PWM7,  PWM8,  PWM9,  PWM10,  PWM11,  PWM12,  PWM13,  BLANK }; // LEDs
+volatile bool  LEDsEnable[NUM_CHANNELS] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
+volatile float  LEDsInten[NUM_CHANNELS] = {5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,     5.,     5.,     5.,     5.};     // PWM in %
 
 // *********************************************************************************************//
 // Button Debounce
 // ------------------------------------------------------------------------
-volatile long  lastInterrupt; 
+volatile long  lastInterrupt; // keep time when interrup occured 
 
 // *********************************************************************************************//
 // EEPROM configuration
@@ -132,7 +132,6 @@ volatile long  lastInterrupt;
 int eepromAddress = 0;   // Where storage starts
 struct EEPROMsettings {                  // Setting structure
   byte         valid;                    // First time use of EEPROM?
-  states       myState;                  // Whater to be in Autoadvance or Manual or Off Mode
   int          LEDs[NUM_CHANNELS];       // Which pins are the LEDs attached
   bool         LEDsEnable[NUM_CHANNELS]; // Is this LED channel used
   float        LEDsInten[NUM_CHANNELS];  // Is this LED brightness in %
@@ -142,6 +141,7 @@ struct EEPROMsettings {                  // Setting structure
   int          CameraTrigger;            // Input pin for trigger
   int          PowerSwitch;              // Input pin for on/off optional
   int          CLK_Pin;                  // Output pin for PWM signal
+  bool         AutoAdvance;              // Frame trigger turns on next LED
   };
 
 EEPROMsettings mySettings; // the settings
@@ -149,21 +149,19 @@ EEPROMsettings mySettings; // the settings
 // *********************************************************************************************//
 // Intervals and Timing
 // ------------------------------------------------------------------------
-#define POLL_INTERVAL          10000     // desired main loop time in microseconds 
+#define POLL_INTERVAL           1000     // desired main loop time in microseconds 
 #define CHECKINPUT_INTERVAL    50000     // interval in microseconds between polling serial input
 #define LEDON_INTERVAL        100000     // internal LED interval on in microseconds 
 #define LEDOFF_INTERVAL       900000     // internal LED interval off in microseconds 
 // *********************************************************************************************//
-unsigned long pollInterval;              //
 unsigned long lastInAvail;               //
-unsigned long lastPoll;                  //
 unsigned long currentTime;               //
 unsigned long nextLEDCheck;              //
 
 // *********************************************************************************************//
 // Controlling Reporting and Input Output
 // ------------------------------------------------------------------------
-bool SERIAL_REPORTING = true;            // Boot messages on/off
+bool SERIAL_REPORTING = false;            // Boot messages on/off
 
 // *********************************************************************************************//
 // Indicator
@@ -230,7 +228,7 @@ void setup(){
       LEDsEnable[i] = mySettings.LEDsEnable[i];
       LEDsInten[i]  = mySettings.LEDsInten[i];
     }
-    myState        = mySettings.myState;
+    AutoAdvance     = mySettings.AutoAdvance;
   } else {
     // create default values for settings
     PWM_Resolution = 8;
@@ -243,7 +241,7 @@ void setup(){
       LEDsEnable[i] = false; 
       LEDsInten[i]  = 5.;
     }
-    myState        = Manual;
+    AutoAdvance     = false;
   }
 
   // Input Pins
@@ -265,8 +263,7 @@ void setup(){
   attachInterrupt(digitalPinToInterrupt(PowerSwitch),        onOff, CHANGE); // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
 
   // House keeping
-  pollInterval = POLL_INTERVAL; // 1 m sec
-  lastInAvail = lastPoll = lastInterrupt = nextLEDCheck = micros();
+  lastInAvail = lastInterrupt = nextLEDCheck = micros();
 
   printSystemInformation();
 
@@ -283,15 +280,7 @@ void loop(){
   // Time Keeper
   //////////////////////////////////////////////////////////////////
   currentTime = micros();                                         // whats the time
-
-  // Main loop delay. Limits how often this loop is running
-  //////////////////////////////////////////////////////////////////
-  int pollDelay = (pollInterval - (int)(currentTime - lastPoll)); // how long do we need to wait?
-  if (pollDelay > 0) {
-    delayMicroseconds(pollDelay);  // wait
-  }
-  lastPoll = currentTime;
-
+ 
   // Input Commands
   //////////////////////////////////////////////////////////////////
   if ((currentTime - lastInAvail) >= CHECKINPUT_INTERVAL) {
@@ -306,10 +295,10 @@ void loop(){
   
   // Blink LED
   //////////////////////////////////////////////////////////////////
-  if (frameTriggerOccured) {
+  if (frameTriggerOccured == true) {
+    frameTriggerOccured = false; // reset signal
     ledStatus = bool(~ledStatus);
     digitalWriteFast(ledPin, ledStatus); // blink
-    frameTriggerOccured = false; // reset signal
     nextLEDCheck = currentTime + LEDON_INTERVAL;
     if (SERIAL_REPORTING) {Serial.printf("Triggered! Current: %d, Intensity %f, %s\r\n",chCurrent, LEDsInten[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
   } else { // regular blinking
@@ -327,6 +316,16 @@ void loop(){
       }
     }
   }
+
+  // Main loop delay. Limits how often this loop is running
+  //////////////////////////////////////////////////////////////////
+  /*
+  long myDelay = (POLL_INTERVAL - (long)(micros() - currentTime) ); // how long do we need to wait?
+  if (myDelay > 0) {
+    delayMicroseconds(myDelay);  // wait
+  }
+  */
+  
 } 
 
 // *********************************************************************************************//
@@ -343,115 +342,33 @@ void loop(){
 // Turns on next LED
 // If current LED is highest channel, do not turn on/off anything
 
-/*Auto
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 13, Previous 13, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 0, Previous 0, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Current: 1, Previous 1, Intensity 5.000000, CLK 22
-Pin 2 is off
-*/
+
 //////////////////////////////////////////////////////////////////
 void frameISR() {
-  switch (myState)  {
-    case Off:
-      // do nothing
-      break;
-    case Auto:
-      // Turn OFF previous LED, 
-      // skip the background channel at NUM_CHANNELS-1
-      if (chCurrent != BACKGROUND_CHANNEL) { digitalWriteFast(LEDs[chPrevious], TURN_OFF); } 
-      // Increment channel
-      chCurrent += 1; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
-      // Continue incrementing if channel is disabled
-      while (LEDsEnable[chCurrent] == false) {
-        chCurrent += 1; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
+  if ( AutoAdvance ) {
+    cli();
+    // Turn OFF previous LED, skip the background channel
+    if (chCurrent != BACKGROUND_CHANNEL) { digitalWrite(LEDs[chCurrent], TURN_OFF); } 
+    // Increment channel
+    chCurrent++; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
+    // Continue incrementing if channel is disabled
+    while (LEDsEnable[chCurrent] == false) { chCurrent++; if (chCurrent >= NUM_CHANNELS) { chCurrent = 0; } }
+    // Turn ON next LED, skip background channel
+    if (chCurrent != BACKGROUND_CHANNEL) { 
+      /*
+      if (PWM_INV) {
+        // PWM signal low turns the LED on
+        analogWrite(CLK_Pin, uint16_t((100.0-LEDsInten[chCurrent]) / 100.0 * float(PWM_MaxValue)));
+      } else {
+        // PWM signal high turns the LED on
+        analogWrite(CLK_Pin, uint16_t(LEDsInten[chCurrent] / 100.0 * float(PWM_MaxValue)));
       }
-      // Turn ON next LED, 
-      // skip background channel at NUM_CHANNELS-1
-      if (chCurrent ~= BACKGROUND_CHANNEL) { 
-        if (PWM_INV) {
-          // PWM signal low turns the LED on
-          analogWrite(CLK_Pin, uint16_t((100.0-LEDsInten[chCurrent]) / 100.0 * float(PWM_MaxValue)));
-        } else {
-          // PWM signal high turns the LED on
-          analogWrite(CLK_Pin, uint16_t(LEDsInten[chCurrent] / 100.0 * float(PWM_MaxValue)));
-        }
-        digitalWriteFast(LEDs[chCurrent], TURN_ON);
-      }
-      break;
-    case Manual:
-      // do nothing
-      break;
+      */
+      digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
+    }
+    sei();
+    frameTriggerOccured = true;  // signal to main loop
   }
-  frameTriggerOccured = true;  // signal to main loop
 }
 
 // Button ISR, toggles On/Off state of system
@@ -462,14 +379,14 @@ void frameISR() {
 void onOff() {
   unsigned long currentTime = micros();
   if (currentTime - lastInterrupt > 20000) {                       // debounce condition, 20ms
-    if ((myState == Auto) || (myState == Manual)) {
-      myPreviousState = myState;                                   // keep track if state was manual or auto
-      myState = Off;
+    if (AutoAdvance) {
+      myPreviousAdvance = AutoAdvance;                                   // keep track if state was manual or auto
+      AutoAdvance = false;
       for (int i=0; i<NUM_CHANNELS-1; i++)  {                      // Turen off all PWM except last channel which is background
         digitalWriteFast(LEDs[i],  TURN_OFF);      
       }
     } else {
-      myState = myPreviousState; // switch back to auto or manual
+      AutoAdvance = myPreviousAdvance; // switch back to auto or manual
     }
     lastInterrupt = currentTime;  // keep track of time for debouncing
   }  
@@ -602,10 +519,7 @@ void printSystemInformation() {
   Serial.printf( "Camera trigger is on: %d\n", CameraTrigger);
   Serial.printf( "Power switch:         %d\n", PowerSwitch);
   Serial.println("-------------------------------------------------");
-  Serial.print(  "State is:             ");
-  if (myState == Off)    { Serial.println("Off"); }
-  if (myState == Auto)   { Serial.println("Auto"); }
-  if (myState == Manual) { Serial.println("Manual"); }
+  Serial.printf( "State is:             %s\r\n", AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
   Serial.printf( "Working on pin: %2d which is %s\n", Pin, PWM_Enabled?"on":"off");
   printChannels();
@@ -677,10 +591,10 @@ void processInstruction(String instruction) {
 
   if        (command == 'a') { // manual mode
     // ENABLE/DISABLE Autodavance based on Frame Trigger////////////////////////////
-    myState = Manual;    
+    AutoAdvance = false;    
     Serial.println("Manual");
   } else if (command == 'A') { // auto advance
-    myState = Auto;
+    AutoAdvance = true;
     Serial.println("Auto");
     
   } else if (command == 'c') { // canera trigger pin
@@ -748,7 +662,7 @@ void processInstruction(String instruction) {
         LEDsEnable[i]= mySettings.LEDsEnable[i];
         LEDsInten[i] = mySettings.LEDsInten[i];
       }
-      myState        = mySettings.myState;
+      AutoAdvance    = mySettings.AutoAdvance;
       Serial.println("EEPROM read.");
     } else { Serial.println("EEPROM settings not valid, not applied."); }
 
@@ -773,7 +687,7 @@ void processInstruction(String instruction) {
       mySettings.LEDsEnable[i] = LEDsEnable[i];
       mySettings.LEDsInten[i]  = LEDsInten[i];
     }
-    mySettings.myState        = myState;
+    mySettings.AutoAdvance     = AutoAdvance;
     EEPROM.put(eepromAddress, mySettings);
     Serial.println("Settings saved to EEPROM");
 
