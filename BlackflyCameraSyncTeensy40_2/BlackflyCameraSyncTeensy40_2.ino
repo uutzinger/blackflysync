@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.1.6"
+#define VERSION "1.1.7"
 #define EEPROM_VALID 0xF1
 #include <iterator>
 #include <algorithm>
@@ -112,8 +112,8 @@ volatile bool frameTriggerOccured = false;
 // LED channel configuration
 // ------------------------------------------------------------------------
 #define NUM_CHANNELS 14
+#define BACKGROUND_CHANNEL 13
 int               chWorking = 0;   // current working channel for manual changes
-volatile int     chPrevious = 0;   // keep track of LED that needs to be turned off
 volatile int      chCurrent = 0;   // Start LED cycke at LED[0]
 volatile int         LEDs[] = {PWM1, PWM2, PWM3, PWM4, PWM5, PWM6, PWM7, PWM8, PWM9, PWM10, PWM11, PWM12, PWM13, BLANK };// LEDs
 volatile bool  LEDsEnable[] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
@@ -152,7 +152,7 @@ EEPROMsettings mySettings; // the settings
 #define POLL_INTERVAL          10000     // desired main loop time in microseconds 
 #define CHECKINPUT_INTERVAL    50000     // interval in microseconds between polling serial input
 #define LEDON_INTERVAL        100000     // internal LED interval on in microseconds 
-#define LEDOFF_INTERVAL       400000     // internal LED interval off in microseconds 
+#define LEDOFF_INTERVAL       900000     // internal LED interval off in microseconds 
 // *********************************************************************************************//
 unsigned long pollInterval;              //
 unsigned long lastInAvail;               //
@@ -308,10 +308,10 @@ void loop(){
   //////////////////////////////////////////////////////////////////
   if (frameTriggerOccured) {
     ledStatus = bool(~ledStatus);
-    digitalWriteFast(ledPin, ledStatus);
-    frameTriggerOccured = false;
+    digitalWriteFast(ledPin, ledStatus); // blink
+    frameTriggerOccured = false; // reset signal
     nextLEDCheck = currentTime + LEDON_INTERVAL;
-    Serial.printf("Current: %d, Previous %d, Intensity %f, CLK %d\r\n",chCurrent, chPrevious, LEDsInten[chCurrent], CLK_Pin);
+    if (SERIAL_REPORTING) {Serial.printf("Triggered! Current: %d, Intensity %f, %s\r\n",chCurrent, LEDsInten[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
   } else { // regular blinking
     if (currentTime > nextLEDCheck) {
       if (ledStatus) {
@@ -427,14 +427,16 @@ void frameISR() {
     case Auto:
       // Turn OFF previous LED, 
       // skip the background channel at NUM_CHANNELS-1
-      if (chPrevious < NUM_CHANNELS-1) { digitalWriteFast(LEDs[chPrevious], TURN_OFF); } 
+      if (chCurrent != BACKGROUND_CHANNEL) { digitalWriteFast(LEDs[chPrevious], TURN_OFF); } 
       // Increment channel
-      chCurrent = (chPrevious + 1)%NUM_CHANNELS;
+      chCurrent += 1; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
       // Continue incrementing if channel is disabled
-      while (LEDsEnable[chCurrent] == false) {chCurrent = (chCurrent + 1)%NUM_CHANNELS;}  // search for the next active LED channel
+      while (LEDsEnable[chCurrent] == false) {
+        chCurrent += 1; if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
+      }
       // Turn ON next LED, 
       // skip background channel at NUM_CHANNELS-1
-      if (chCurrent < NUM_CHANNELS-1) { 
+      if (chCurrent ~= BACKGROUND_CHANNEL) { 
         if (PWM_INV) {
           // PWM signal low turns the LED on
           analogWrite(CLK_Pin, uint16_t((100.0-LEDsInten[chCurrent]) / 100.0 * float(PWM_MaxValue)));
@@ -444,13 +446,12 @@ void frameISR() {
         }
         digitalWriteFast(LEDs[chCurrent], TURN_ON);
       }
-      chPrevious = chCurrent;
       break;
     case Manual:
       // do nothing
       break;
   }
-  frameTriggerOccured = true;  
+  frameTriggerOccured = true;  // signal to main loop
 }
 
 // Button ISR, toggles On/Off state of system
@@ -460,11 +461,11 @@ void frameISR() {
 //////////////////////////////////////////////////////////////////
 void onOff() {
   unsigned long currentTime = micros();
-  if (currentTime - lastInterrupt > 20000) {                       // debounce condition
+  if (currentTime - lastInterrupt > 20000) {                       // debounce condition, 20ms
     if ((myState == Auto) || (myState == Manual)) {
       myPreviousState = myState;                                   // keep track if state was manual or auto
       myState = Off;
-      for (int i=0; i<NUM_CHANNELS-1; i++)  {                           // Turen off all PWM except last channel which is background
+      for (int i=0; i<NUM_CHANNELS-1; i++)  {                      // Turen off all PWM except last channel which is background
         digitalWriteFast(LEDs[i],  TURN_OFF);      
       }
     } else {
@@ -758,7 +759,15 @@ void processInstruction(String instruction) {
     mySettings.PWM_Frequency   = PWM_Frequency;
     mySettings.PWM_Resolution  = PWM_Resolution;
     mySettings.DutyCycle       = DutyCycle;   
-    mySettings.CLK_Pin         = CLK_Pin;     
+    mySettings.CLK_Pin         = CLK_Pin;
+    bool valid=false;
+    for (int i=0; i<NUM_CHANNELS; i++) {
+      valid = valid || LEDsEnable[i];
+    }
+    if (!valid) {
+      LEDsEnable[NUM_CHANNELS-1] = true;
+      Serial.println("Turned on background channel to enable at least one channel.");
+    } // There needs to be at least one channel enabled, otherwise ISR will get stuck
     for (int i=0; i<NUM_CHANNELS; i++) {
       mySettings.LEDs[i]       = LEDs[i];      
       mySettings.LEDsEnable[i] = LEDsEnable[i];
