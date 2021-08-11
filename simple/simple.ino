@@ -1,34 +1,35 @@
 // *********************************************************************************************//
-// Blacklfy Camera Sync with Teensy 4.x
+// Blacklfy Camera Sync with Teensy 4.x                                                         //
 // *********************************************************************************************//
 
+#define BAUDRATE 115200      // Serial communicaiton speed
+
 // *********************************************************************************************//
-// Pin Names:
+// Pin Settings
 // ------------------------------------------------------------------------
-#define NUM_CHANNELS      3 //
-#define CH1               2 // Connect to LED driver channel 1 (output)
-#define CH2               3 // Connect to LED driver channel 2 (output)
-#define CH_BG            -1 // all LEDs off
-#define CLK              22 // Connect to LED driver PWM CLK (output)
-#define CAMTRG           21 // Camera frame trigger, needs to go to pin 8 (input)
-#define LEDPIN           13 // Built in LED
-#define TURN_ON  HIGH       // 
-#define TURN_OFF LOW        // 
+#define NUM_CHANNELS       3 // Number of LED channels
+#define CH1                2 // Connect pin 2 to LED driver channel 1 (output)
+#define CH2                3 // Connect pin 3 to LED driver channel 2 (output)
+#define CH_BG             -1 // LED driver background channel, all LEDs off  
+#define CLK               22 // Connect pin 22 to LED driver PWM CLK (output)
+#define CAMTRG            21 // Connect pin 21 to Camera frame trigger (input)
+#define LEDPIN            13 // Built in LED
+#define TURN_ON  HIGH        // Define Enable Channel
+#define TURN_OFF LOW         // Define Disable Channel
 
-// *********************************************************************************************//
-// LED channel configuration
+// PWM Settings
 // ------------------------------------------------------------------------
+#define PWM_Frequency  50000
+#define PWM_Resolution     8   
+#define PWM_MaxValue     255
+#define DutyCycle        5.0  
 
-volatile int LEDs[NUM_CHANNELS] = {CH1,  CH2, CH_BG }; // LEDs
-volatile int     currentChannel = 0;
-
-#define       PWM_Frequency  50000
-#define       PWM_Resolution     8   
-#define       PWM_MaxValue     255
-#define       DutyCycle        5.0  
-
-volatile bool frameTriggerOccured = false;
-volatile bool ledStatus = false;
+// Variables
+// ------------------------------------------------------------------------
+volatile int  LEDs[NUM_CHANNELS] = {CH1,  CH2, CH_BG }; // LED channel array
+volatile int  currentChannel = 0;                       // Index to current LED in LED array
+volatile bool frameTriggerOccured = false;              // Signal to main loop
+bool ledStatus = false;                                 // Blinking of the built in LED
 
 // *********************************************************************************************//
 // SETUP                                                                                        //
@@ -41,46 +42,50 @@ void setup(){
   pinMode(CLK,        OUTPUT); digitalWriteFast(CLK,   HIGH); 
   pinMode(LEDPIN,     OUTPUT); digitalWriteFast(LEDPIN,LOW ); 
 
-  // Input Pins
+  // Configure Input Pins
   pinMode(CAMTRG, INPUT_PULLUP);  // Frame trigger
 
-  // Interrupts
-  attachInterrupt(digitalPinToInterrupt(CAMTRG),   frameISR, RISING); // Frame start
+  // Configure Interrupts
+  attachInterrupt(digitalPinToInterrupt(CAMTRG), frameISR, RISING);            // ISR occurs at frame exposure start
  
-  // set PWM clk oputput
-  analogWriteResolution(PWM_Resolution);    // change resolution
-  analogWriteFrequency(CLK, PWM_Frequency);
-  analogWrite(CLK, uint16_t((100.0-DutyCycle) / 100.0 * float(PWM_MaxValue)));
+  // Configure PWM output
+  analogWriteResolution(PWM_Resolution);                                       // change resolution
+  analogWriteFrequency(CLK, PWM_Frequency);                                    // set PWM frequency on CLK pin
+  analogWrite(CLK, uint16_t((100.0-DutyCycle) / 100.0 * float(PWM_MaxValue))); // set Duty Cyle and enable PWM on CLK pin (i have inverted PWM logic)
+
+  // Start Serial IO
+  Serial.begin(BAUDRATE);
+  Serial.println("System started");
 } // end setup
 
 // *********************************************************************************************//
-// *********************************************************************************************//
 // Main LOOP                                                                                    //
-// *********************************************************************************************//
 // *********************************************************************************************//
 
 void loop(){
     
-  // Blink LED
-  //////////////////////////////////////////////////////////////////
+  // Blink LED if ISR occurs
+  // ------------------------------------------------------------------------
   if (frameTriggerOccured) {
-    ledStatus = bool(~ledStatus);
+    ledStatus = !ledStatus;
     digitalWriteFast(LEDPIN, ledStatus); // blink
-    frameTriggerOccured = false; // reset signal
+    frameTriggerOccured = false;         // reset signal
+    Serial.println(currentChannel);      // debug
   }
 
 } 
 
-//////////////////////////////////////////////////////////////////
+// *********************************************************************************************//
+// Support Functions                                                                            //
+// *********************************************************************************************//
+
 void frameISR() {
   // Turn OFF previous LED, skip the background channel
   if (LEDs[currentChannel] != CH_BG) { digitalWriteFast(LEDs[currentChannel], TURN_OFF); } 
-  // Increment channel
-  currentChannel++; if (currentChannel >= NUM_CHANNELS) {currentChannel = 0;}
-  // Continue incrementing if channel is disabled
-  // Turn ON next LED, skip background channel
-  if (LEDs[currentChannel] != CH_BG) { 
-    digitalWriteFast(LEDs[currentChannel], TURN_ON); // turn on enable pin
-  }
+  // Increment channel index
+  currentChannel = (currentChannel + 1 == NUM_CHANNELS) ? 0 : currentChannel+1;
+  if (currentChannel >= NUM_CHANNELS) {currentChannel = 0;}
+  // Turn ON next LED, skip the background channel
+  if (LEDs[currentChannel] != CH_BG) { digitalWriteFast(LEDs[currentChannel], TURN_ON); } 
   frameTriggerOccured = true;  // signal to main loop
 }
