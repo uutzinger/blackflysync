@@ -1,7 +1,3 @@
-// *********************************************************************************************//
-// Blacklfy Camera Sync with Teensy 4.x                                                         //
-// *********************************************************************************************//
-
 #define BAUDRATE 115200      // Serial communicaiton speed
 
 // *********************************************************************************************//
@@ -28,7 +24,7 @@
 // ------------------------------------------------------------------------
 volatile int LEDs[NUM_CHANNELS] = {CH1, CH2, CH_BG }; // LED channel array
 volatile int currentChannel = 0;                      // Index to current LED in LED array
-volatile bool triggerOccured = false;                 // Signal to main loop
+volatile bool triggerOccurred = false;                 // Signal to main loop
 bool ledStatus = false;                               // Blinking of the built in LED
 
 // *********************************************************************************************//
@@ -37,13 +33,13 @@ bool ledStatus = false;                               // Blinking of the built i
 void setup(){
 
   // Configure output pins, set them all to off/low
-  pinMode(CH1,          OUTPUT); digitalWrite(CH1,   TURN_OFF);
-  pinMode(CH2,          OUTPUT); digitalWrite(CH2,   TURN_OFF);
-  pinMode(CLK,          OUTPUT); digitalWrite(CLK,   HIGH); 
-  pinMode(LEDPIN,       OUTPUT); digitalWrite(LEDPIN,LOW ); 
+  pinMode(CH1,    OUTPUT); digitalWrite(CH1,   TURN_OFF);
+  pinMode(CH2,    OUTPUT); digitalWrite(CH2,   TURN_OFF);
+  pinMode(CLK,    OUTPUT); digitalWrite(CLK,   HIGH); 
+  pinMode(LEDPIN, OUTPUT); digitalWrite(LEDPIN,LOW ); 
 
-  // Configure Input Pins
-  pinMode(TRG, INPUT_PULLUP);  // trigger
+  // Configure input pins
+  pinMode(TRG,    INPUT_PULLUP);  // trigger
 
   // Configure Interrupts
   attachInterrupt(digitalPinToInterrupt(TRG), myISR, RISING);
@@ -64,12 +60,12 @@ void setup(){
 
 void loop(){
     
-  // Blink LED if ISR occurs
+  // Blink LED if ISR was called
   // ------------------------------------------------------------------------
-  if (triggerOccured) {
+  if (triggerOccurred) {
     ledStatus = !ledStatus;
     digitalWriteFast(LEDPIN, ledStatus); // blink
-    triggerOccured = false;              // reset signal
+    triggerOccurred = false;             // reset signal
     Serial.println(currentChannel);      // debug
   }
 
@@ -87,5 +83,5 @@ void myISR() {
   if ( currentChannel == NUM_CHANNELS ) { currentChannel = 0; }
   // Turn ON next LED, skip the background channel
   if (LEDs[currentChannel] != CH_BG) { digitalWriteFast(LEDs[currentChannel], TURN_ON); } 
-  triggerOccured = true;  // signal to main loop
+  triggerOccurred = true;  // signal to main loop
 }
