@@ -13,6 +13,8 @@
 #define TURN_ON  HIGH        // Define Enable Channel
 #define TURN_OFF LOW         // Define Disable Channel
 
+#define DEBOUNCE       1000  // 1ms, should be enough for 530Hz camera
+
 // PWM Settings
 // ------------------------------------------------------------------------
 #define PWM_Frequency      5
@@ -24,7 +26,8 @@
 // ------------------------------------------------------------------------
 volatile int LEDs[NUM_CHANNELS] = {CH1, CH2, CH_BG }; // LED channel array
 volatile int currentChannel = 0;                      // Index to current LED in LED array
-volatile bool triggerOccurred = false;                 // Signal to main loop
+volatile int triggerOccurred = 0;                     // Signal to main loop
+volatile unsigned long triggerTime = 0;
 bool ledStatus = false;                               // Blinking of the built in LED
 
 // *********************************************************************************************//
@@ -62,12 +65,14 @@ void loop(){
     
   // Blink LED if ISR was called
   // ------------------------------------------------------------------------
-  if (triggerOccurred) {
+  if (triggerOccurred>0) {
     ledStatus = !ledStatus;
     digitalWriteFast(LEDPIN, ledStatus); // blink
-    triggerOccurred = false;             // reset signal
+    Serial.print(triggerOccurred);       // debug
+    Serial.print(" ");                   // debug
     Serial.println(currentChannel);      // debug
-  }
+    triggerOccurred = 0;                 // reset signal
+ }
 
 } 
 
@@ -76,12 +81,16 @@ void loop(){
 // *********************************************************************************************//
 
 void myISR() {
-  // Turn OFF previous channel, skip the background channel
-  if (LEDs[currentChannel] != CH_BG) { digitalWriteFast(LEDs[currentChannel], TURN_OFF); } 
-  // Increment channel index
-  currentChannel = currentChannel + 1;
-  if ( currentChannel == NUM_CHANNELS ) { currentChannel = 0; }
-  // Turn ON next LED, skip the background channel
-  if (LEDs[currentChannel] != CH_BG) { digitalWriteFast(LEDs[currentChannel], TURN_ON); } 
-  triggerOccurred = true;  // signal to main loop
+  unsigned long currentTime = micros(); 
+  if ((currentTime-triggerTime) > DEBOUNCE) {
+    // Turn OFF previous channel, skip the background channel
+    if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_OFF); } 
+    // Increment channel index
+    currentChannel = currentChannel + 1;
+    if ( currentChannel == NUM_CHANNELS ) { currentChannel = 0; }
+    // Turn ON next LED, skip the background channel
+    if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_ON); } 
+    triggerOccurred = triggerOccurred + 1;  // signal to main loop
+    triggerTime = currentTime;
+  }
 }
