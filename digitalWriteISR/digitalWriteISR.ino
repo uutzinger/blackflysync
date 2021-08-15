@@ -45,7 +45,7 @@ void setup(){
   pinMode(TRG,    INPUT_PULLUP);  // trigger
 
   // Configure Interrupts
-  attachInterrupt(digitalPinToInterrupt(TRG), myISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(TRG), myISR, FALLING);
  
   // Configure PWM output
   analogWriteResolution(PWM_Resolution);                               // change resolution
@@ -62,18 +62,14 @@ void setup(){
 // *********************************************************************************************//
 
 void loop(){
-    
   // Blink LED if ISR was called
   // ------------------------------------------------------------------------
   if (triggerOccurred>0) {
     ledStatus = !ledStatus;
     digitalWriteFast(LEDPIN, ledStatus); // blink
-    Serial.print(triggerOccurred);       // debug
-    Serial.print(" ");                   // debug
-    Serial.println(currentChannel);      // debug
+    Serial.printf("Triggered:%i, Channel:%i\r\n", triggerOccurred, currentChannel);     // debug
     triggerOccurred = 0;                 // reset signal
  }
-
 } 
 
 // *********************************************************************************************//
@@ -81,16 +77,12 @@ void loop(){
 // *********************************************************************************************//
 
 void myISR() {
-  unsigned long currentTime = micros(); 
-  if ((currentTime-triggerTime) > DEBOUNCE) {
-    // Turn OFF previous channel, skip the background channel
-    if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_OFF); } 
-    // Increment channel index
-    currentChannel = currentChannel + 1;
-    if ( currentChannel == NUM_CHANNELS ) { currentChannel = 0; }
-    // Turn ON next LED, skip the background channel
-    if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_ON); } 
-    triggerOccurred = triggerOccurred + 1;  // signal to main loop
-    triggerTime = currentTime;
-  }
+  // Turn OFF previous channel, skip the background channel
+  if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_OFF); } 
+  // Increment channel index
+  currentChannel = currentChannel + 1;
+  if ( currentChannel == NUM_CHANNELS ) { currentChannel = 0; }
+  // Turn ON next LED, skip the background channel
+  if (LEDs[currentChannel] != CH_BG) { digitalWrite(LEDs[currentChannel], TURN_ON); } 
+  triggerOccurred = triggerOccurred + 1;  // signal to main loop
 }
