@@ -14,7 +14,8 @@
 //
 // Setup
 // -----
-// The Camera Line 2 will need to be programmed to be the Frame Sync
+// The Camera Output Line (Line 2, red) will need to be programmed to be the Frame Sync. 
+// Best Configuration is with inverted logic.
 //
 // Operation
 // ---------
