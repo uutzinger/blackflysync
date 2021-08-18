@@ -51,7 +51,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.2.0"
+#define VERSION "1.3.0"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -76,8 +76,13 @@
 volatile bool AutoAdvance = false;
 volatile bool myPreviousAdvance = false;
 volatile unsigned int frameTriggerOccurred = 0;
+volatile unsigned long lastTriggerTime = 0;
+#define DEBOUNCEBLOCK 1800 // in microseconds, with 500 frames per second we have frame trigger every 2000 micro seconds
 
 // *********************************************************************************************//
+// Controlling Reporting and Input Output
+// ------------------------------------------------------------------------
+bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporting on/off
 
 // *********************************************************************************************//
 // Pin Names:
@@ -106,7 +111,7 @@ volatile unsigned int frameTriggerOccurred = 0;
 #define TURN_ON  HIGH      // 
 #define TURN_OFF LOW       // 
 #define PWM_INV  true      // If true, high on CLK pin represents OFF
-#define INTERRUPTTRIGGER FALLING // Can be RISING or FALLING, depends on camera settings
+#define INTERRUPTTRIGGER RISING // Can be RISING or FALLING, depends on camera settings
 
 // *********************************************************************************************//
 // LED channel configuration
@@ -158,17 +163,14 @@ EEPROMsettings mySettings; // the settings
 unsigned long lastInAvail;               //
 unsigned long currentTime;               //
 unsigned long nextLEDCheck;              //
-
-// *********************************************************************************************//
-// Controlling Reporting and Input Output
-// ------------------------------------------------------------------------
-bool SERIAL_REPORTING = false;            // Boot messages on/off
+unsigned long lastFrameTrigger;          // timout LEDs
 
 // *********************************************************************************************//
 // Indicator
 // ------------------------------------------------------------------------
 const int ledPin = LEDPIN;               // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
 bool ledStatus = false;                  // Led should be off at start up
+bool Stopped = true;                     // System is not autoadvancing
 
 // *********************************************************************************************//
 // Main System and PWM working variables
@@ -269,6 +271,7 @@ void setup(){
   lastInAvail = lastInterrupt = nextLEDCheck = micros();
 
   printSystemInformation();
+  printHelp();
 
 } // end setup
 
@@ -302,8 +305,10 @@ void loop(){
     ledStatus = !ledStatus;
     digitalWriteFast(ledPin, ledStatus); // blink
     nextLEDCheck = currentTime + LEDON_INTERVAL;
-    if (SERIAL_REPORTING) {Serial.printf("Triggered! %ui times, Channel: %i, Intensity %hu, %s\r\n",frameTriggerOccurred, chCurrent, LEDsIntenI[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
+    if (SERIAL_REPORTING) {Serial.printf("Triggered! %u times, Channel: %i, Intensity %hu, %s\r\n",frameTriggerOccurred, chCurrent, LEDsIntenI[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
     frameTriggerOccurred = 0; // reset signal
+    lastFrameTrigger = currentTime;
+    Stopped = false;
   } else { // regular blinking
     if (currentTime > nextLEDCheck) {
       if (ledStatus) {
@@ -320,6 +325,19 @@ void loop(){
     }
   }
 
+  // If autoadvance enabled
+  // and if no frame trigger detected for 5 seconds
+  // turn off all LEDs
+  if (AutoAdvance && (Stopped==false)) {
+    if ( (currentTime -lastFrameTrigger) > 5000000) {
+      for (int i=0; i<NUM_CHANNELS; i++) {
+        if ( (LEDsEnable[i]==true) && isIO(LEDs[i]) ) { digitalWrite(LEDs[i],TURN_OFF); }     
+      }
+      Stopped = true;
+      Serial.println("Turned off all LEDs");
+    }
+  }
+  
   // Main loop delay. Limits how often this loop is running
   //////////////////////////////////////////////////////////////////
   long myDelay = (POLL_INTERVAL - (long)(micros() - currentTime) ); // how long do we need to wait?
@@ -347,22 +365,26 @@ void loop(){
 //////////////////////////////////////////////////////////////////
 void frameISR() {
   if ( AutoAdvance ) {
-    // Turn OFF previous LED, skip the background channel
-    if (chCurrent != BACKGROUND_CHANNEL) { digitalWrite(LEDs[chCurrent], TURN_OFF); } 
-    // Increment channel
-    chCurrent += 1; 
-    if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
-    // Continue incrementing if channel is disabled
-    while (LEDsEnable[chCurrent] == false) { 
+    unsigned long triggerTime = micros();
+    if ( (triggerTime - lastTriggerTime) > DEBOUNCEBLOCK ) { // debounce
+      // Turn OFF previous LED, skip the background channel
+      if (chCurrent != BACKGROUND_CHANNEL) { digitalWrite(LEDs[chCurrent], TURN_OFF); } 
+      // Increment channel
       chCurrent += 1; 
-      if (chCurrent >= NUM_CHANNELS) { chCurrent = 0; }
+      if (chCurrent >= NUM_CHANNELS) {chCurrent = 0;}
+      // Continue incrementing if channel is disabled
+      while (LEDsEnable[chCurrent] == false) { 
+        chCurrent += 1; 
+        if (chCurrent >= NUM_CHANNELS) { chCurrent = 0; }
+      }
+      // Turn ON next LED, skip background channel
+      if (chCurrent != BACKGROUND_CHANNEL) { 
+        analogWrite(CLK_Pin, LEDsIntenI[chCurrent]); // set intensity 
+        digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
+      }
+      frameTriggerOccurred += 1;  // signal to main loop
+      lastTriggerTime = triggerTime;
     }
-    // Turn ON next LED, skip background channel
-    if (chCurrent != BACKGROUND_CHANNEL) { 
-      analogWrite(CLK_Pin, LEDsIntenI[chCurrent]); // set intensity 
-      digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
-    }
-    frameTriggerOccurred += 1;  // signal to main loop
   }
 }
 
@@ -463,7 +485,7 @@ void setupPWM(uint16_t PWM_Pin, float PWM_Freq, float Duty, unsigned int Resolut
 //////////////////////////////////////////////////////////////////
 void printHelp() {
   Serial.println("-------------------------------------------------");
-  Serial.println("   BlackFly Camera to LED Illumination Sync");
+  Serial.println("BlackFly Camera to LED Illumination Sync Help");
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
   Serial.println("0 Disable Auto Advance: a");
@@ -505,6 +527,8 @@ void printHelp() {
 
 void printSystemInformation() {
   Serial.println("-------------------------------------------------");
+  Serial.println("BlackFly Camera to LED Illumination Sync Status");
+  Serial.println("-------------------------------------------------");
   Serial.printf( "Software version:     %s\r\n", VERSION);
   Serial.printf( "CPU:                  %2d MHz\r\n", CPU_Frequency);
   Serial.printf( "PWM pin:              %d\r\n", CLK_Pin);
@@ -534,7 +558,6 @@ void printChannels() {
 void printPinInformation() {
   Serial.println("-------------------------------------------------");
   Serial.println("Maximum Values:");
-  Serial.println("-------------------------------------------------");
   listFrequencies();
   listPins();
 }
@@ -543,9 +566,9 @@ void listFrequencies()
 {
   Serial.println("-------------------------------------------------");
   for(int i=2; i<=15; i++) {
-    Serial.printf("Resolution: %2d bit, Frequency: %10.2f\r\n", i, GetMaxPWMFreqValue(CPU_Frequency, i));
+    Serial.printf("Resolution: %2d bit, Frequency: %11.2f\r\n", i, GetMaxPWMFreqValue(CPU_Frequency, i));
   }
-  Serial.println("Resolution: 16 bit, Frequency: N.A.");
+  Serial.println("Resolution: 16 bit, Frequency:        N.A.");
 } 
 
 boolean isPWM(uint8_t mypin) {
@@ -717,11 +740,11 @@ void processInstruction(String instruction) {
       Pin         = LEDs[chWorking];
       PWM_Enabled = LEDsEnable[chWorking];
       DutyCycle   = LEDsInten[chWorking];
-      Serial.printf("Current Channel: %2d\r\n",   chWorking);
-      Serial.printf("Pin:             %2d\r\n",   Pin);
-      Serial.printf("PWM Duty:        %4.3f\r\n", DutyCycle);
-      Serial.printf("PWM Frequency:   %10.2f\r\n",PWM_Frequency);
-      Serial.printf("Channel:         %s\r\n",    PWM_Enabled?"Enabled":"Disabled");
+      Serial.printf("Current Channel:     %2d\r\n",   chWorking);
+      Serial.printf("Pin:                 %2d\r\n",   Pin);
+      Serial.printf("PWM Duty:            %5.2f\r\n", DutyCycle);
+      Serial.printf("PWM Frequency: %11.2f\r\n",PWM_Frequency);
+      Serial.printf("Channel:       %s\r\n",    PWM_Enabled?" Enabled":"Disabled");
       if (PWM_Enabled) {
         if      (isIO(Pin))     { digitalWrite(LEDs[chWorking],  TURN_ON);}
       } else {
