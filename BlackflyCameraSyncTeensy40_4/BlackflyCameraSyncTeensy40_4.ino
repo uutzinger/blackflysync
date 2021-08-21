@@ -385,7 +385,7 @@ void onOff() {
   unsigned long onOffTime = micros();
   if (onOffTime - lastInterrupt > 20000) {                       // debounce condition, 20ms
     if (AutoAdvance) {
-      myPreviousAdvance = AutoAdvance;                                   // keep track if state was manual or auto
+      myPreviousAdvance = AutoAdvance;                           // keep track if state was manual or auto
       AutoAdvance = false;
       for (int i=0; i<NUM_CHANNELS; i++)  {                      // Turen off all PWM except last channel which is background
         if ( LEDs[i] != BACKGND ) { digitalWriteFast(LEDs[i],  TURN_OFF); }
