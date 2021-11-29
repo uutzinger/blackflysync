@@ -504,7 +504,7 @@ void printHelp() {
   Serial.println("  d: set intensity of working channel 0..100");
   Serial.println("  m/M: disable/enable the working channel");  
   Serial.println("3 Save working channel: S0");
-  Serial.println("4 Enable Auto Advance: A");
+  Serial.println("4 Enable Auto Advance: A (pls check all settings first)");
   Serial.println("5 Save channel configurations to EEPROM: E");
   Serial.println("------- Data Input--------------------------------");
   Serial.println("p5   set current working pin to 5");
@@ -526,6 +526,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("a/A  disable/enable Auto Advance"); 
   Serial.println("e/E  read/save settings to EEPROM");
+  Serial.println("Z    turn off all channels");
   Serial.println("-------------------------------------------------");
   Serial.println("Shannon McCoy, Urs Utzinger, 2020-21");
   Serial.println("-------------------------------------------------");
@@ -761,9 +762,9 @@ void processInstruction(String instruction) {
       tempInt = value.toInt();      
       if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) {      
         chWorking = tempInt;
-        LEDs[chWorking]      = Pin;
+        LEDs[chWorking]        = Pin;
         LEDsEnable[chWorking]  = PWM_Enabled;       
-        LEDsInten[chWorking] = DutyCycle;       
+        LEDsInten[chWorking]   = DutyCycle;       
         if (PWM_INV) { LEDsIntenI[chWorking] = uint16_t(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
         else         { LEDsIntenI[chWorking] = uint16_t(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
         Serial.printf("Channel %d saved.\r\n",chWorking);
@@ -827,6 +828,10 @@ void processInstruction(String instruction) {
     } else {
       Serial.println("Pin not available.");
     }
+
+  } else if (command == 'Z') { 
+    for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWriteFast(LEDs[i],TURN_OFF); } 
+    Serial.println("Turned all channels off");
 
   } else if (command == '\n') { // ignore
     // Ignore Carriage Return //////////////////////////////////////////////////////////////

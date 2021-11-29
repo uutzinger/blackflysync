@@ -14,7 +14,15 @@ A button can be attached to disable all LEDs via software. The button will need 
 *Urs Utzinger, July, 2021*  
 *Shannon McCoy, 2020, 2021*
 
+## Program Versions
+- Flexible: Allows to turn on/off individual channels. During autoadvance the program will skip channels that are turned off.
+- Minimal: All channels are used during autoadvance.
+- 2CH: Same as minimal but only with two channels
+
 ## Example Work Flow
+
+In **manual** mode, we can set each pin and channel individually. In **auto** mode the system will cycle through the settings based on the input frame trigger.
+
   - Disable Auto Advance: a
     - f:   set the PWM frequency
     - r:   resolution in bits
@@ -25,7 +33,7 @@ A button can be attached to disable all LEDs via software. The button will need 
     - p:   set the pin associated to current channel
     - d:   set pulse width on the channel
   - Save working channel: s
-  - Enable Auto Advance:  A
+  - Enable Auto Advance:  A (pls make sure all is set correctly)
   - Save channel configurations to EEPROM: E
 
 ## Help/Configuration

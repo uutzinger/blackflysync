@@ -496,7 +496,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("a/A  disable/enable Auto Advance"); 
   Serial.println("m/M  turn on/off current working channel");
-  Serial.println("Z    turn on/off all channels");  
+  Serial.println("Z    turn off all channels");  
   Serial.println("e/E  read/save settings to EEPROM");
   Serial.println("-------------------------------------------------");
   Serial.println("Shannon McCoy, Urs Utzinger, 2020-21");
