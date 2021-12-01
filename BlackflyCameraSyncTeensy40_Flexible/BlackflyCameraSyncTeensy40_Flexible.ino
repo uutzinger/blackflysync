@@ -52,7 +52,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.3.0"
+#define VERSION "1.4.0"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -71,8 +71,8 @@
 // *********************************************************************************************//
 // ISR States:
 // ------------------------------------------------------------------------
-// Autoadvance:     Autoadvance to next channel when external Frame Trigger occurs
-// No Autoadvance:  User is adjusting a single channel
+// Autoadvance: Autoadvance to next channel when external Frame Trigger occurs
+// Manual:      User is adjusting a single channel
 // ------------------------------------------------------------------------
 volatile bool AutoAdvance = false;              // Auto (true) or Manual
 // 
@@ -83,12 +83,12 @@ volatile bool AutoAdvance = false;              // Auto (true) or Manual
 // With 500 frames per second we have frame trigger every 2000 micro seconds
 // therore the bounce block should be less than 2 ms long
 											
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Controlling Reporting and Input Output
 // ------------------------------------------------------------------------
 bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporting on/off
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Pin Names:
 // ------------------------------------------------------------------------
 #define LEDPIN           13 // buitin LED
@@ -107,18 +107,18 @@ bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporti
 #define CH12            14 // Connect to LED driver channel 12 (output)
 #define CH13            15 // Connect to LED driver channel 13 (output)
 #define PWM             22 // Connect to LED driver CLOCK (output)
-#define BACKGND            99 // Connect to LED driver virtual channel 99 (none)
-#define CAMTRG           21 // Camera frame trigger, needs to go to pin 8 (input)
-#define POWERSWITCH      -1 // External Button (input)
+#define BACKGND         99 // Connect to LED driver virtual channel 99 (none)
+#define CAMTRG          21 // Camera frame trigger, needs to go to pin 8 (input)
+#define POWERSWITCH     -1 // External Button (input)
 // *********************************************************************************************//
 // This depends on the hardware logic of the FET driver and FET of your circuit
-#define TURN_ON  HIGH       // Adjust if you have inverted logic for ON/OFF
-#define TURN_OFF LOW        // 
-#define PWM_INV  true       // If true, high on PWM pin represents OFF
+#define TURN_ON  HIGH           // Adjust if you have inverted logic for ON/OFF
+#define TURN_OFF LOW            // 
+#define PWM_INV  true           // If true, high on PWM pin represents OFF
 #define INTERRUPTTRIGGER RISING // Can be RISING or FALLING
-// You can change the LED right after exposure is completed or within first few miroseconds
+// You can advance to the next LED right after exposure is completed or within first few miroseconds
 // after camera starts measuring. Ideal is after current exposure: 
-// With inverted FRAME_EXPOSURE signal that would be the rising edge of the rtigger signal
+// With inverted FRAME_EXPOSURE signal that would be the rising edge of the trigger signal
 
 // ------------------------------------------------------------------------
 // LED channel configuration
@@ -139,12 +139,12 @@ volatile uint16_t LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,   
 // ------------------------------------------------------------------------
 // Button and Frame Trigger ISR
 // ------------------------------------------------------------------------
-volatile long  lastInterrupt; // keep time when interrup occured 
+volatile long lastInterrupt; // keep time when interrup occured 
 volatile bool myPreviousAdvance = false;
 volatile unsigned int frameTriggerOccurred = 0;
 volatile unsigned long lastTriggerTime = 0;																										
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // EEPROM configuration
 // ------------------------------------------------------------------------
 #include <EEPROM.h>
@@ -166,26 +166,25 @@ struct EEPROMsettings {                  // Setting structure
 
 EEPROMsettings mySettings; // the settings
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Intervals and Timing
 // ------------------------------------------------------------------------
 #define POLL_INTERVAL           1000     // desired main loop time in microseconds 
 #define CHECKINPUT_INTERVAL    50000     // interval in microseconds between polling serial input
 #define LEDON_INTERVAL        100000     // internal LED interval on in microseconds 
 #define LEDOFF_INTERVAL       900000     // internal LED interval off in microseconds 
-// *********************************************************************************************//
 unsigned long lastInAvail;               //
 unsigned long currentTime;               //
 unsigned long nextLEDCheck;              //
 unsigned long lastFrameTrigger;          // timout LEDs
 bool Stopped = false;																				
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Indicator
 // ------------------------------------------------------------------------
 bool ledStatus = false;                  // Led should be off at start up
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Main System and PWM working variables
 // ------------------------------------------------------------------------
 unsigned int  Pin            = CH1;          //
@@ -199,7 +198,7 @@ float         DutyCycle      = 5.0;           //
 int           CameraTrigger  = CAMTRG;        //
 int           PowerSwitch    = POWERSWITCH;   //
 
-// *********************************************************************************************//
+// ------------------------------------------------------------------------
 // Serial
 #define SERIAL_PORT_SPEED    2000000     // Serial Baud Rate
 char   inBuff[] = "----------------";    // needs to match maximum length of a command
@@ -250,7 +249,7 @@ void setup(){
     if (isIO(LEDs[i])) {
 		pinMode(LEDs[i], OUTPUT); 														
 		digitalWrite(LEDs[i], TURN_OFF);
-	}
+    }
   }
 
   pinMode(PWM,         OUTPUT); if (PWM_INV) {digitalWrite(PWM, HIGH);} else {digitalWrite(PWM, LOW);}
@@ -271,8 +270,10 @@ void setup(){
   }
 
   // Interrupts
-  attachInterrupt(digitalPinToInterrupt(CameraTrigger),   frameISR, INTERRUPTTRIGGER); // Frame start
-  // attachInterrupt(digitalPinToInterrupt(PowerSwitch),        onOff, CHANGE); // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
+  // Frame Trigger, required
+  attachInterrupt(digitalPinToInterrupt(CameraTrigger), frameISR, INTERRUPTTRIGGER); // Frame start
+  // Power Button, if button is not existing pin, dont enable this, e.g. -1
+  if ( isIO(POWERSWITCH) ) { attachInterrupt(digitalPinToInterrupt(PowerSwitch), onOff, CHANGE); } // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
 
   // House keeping
   lastInAvail = lastInterrupt = nextLEDCheck = micros();
@@ -308,7 +309,7 @@ void loop(){
   
   // Blink LED
   //////////////////////////////////////////////////////////////////
-  if (frameTriggerOccurred > 0) {
+  if (frameTriggerOccurred > 0) { // blink
     ledStatus = !ledStatus;
     digitalWriteFast(LEDPIN, ledStatus); // blink
     nextLEDCheck = currentTime + LEDON_INTERVAL;
@@ -341,7 +342,7 @@ void loop(){
         if ( (LEDsEnable[i]==true) && isIO(LEDs[i]) ) { digitalWrite(LEDs[i],TURN_OFF); }     
       }
       Stopped = true;
-      Serial.println("Turned off all LEDs");
+      if (SERIAL_REPORTING) { Serial.println("Turned off all LEDs"); }
     }
   }
   
@@ -363,11 +364,11 @@ void loop(){
 //  analgoWrite(pin,some value > 0) takes 5-6 microseconds on Teensy 3.2
 //
 // Turns off current LED
-// Checks if LED is enabled, otherwise skip
+// Increment to next LED
+// Check if LED is enabled, otherwise skip
 // Set intensity
-// Turns on next LED
-// If current LED is highest channel, do not turn on/off anything
-
+// Turns on LED
+// If current LED is background channel, do not turn on/off
 
 //////////////////////////////////////////////////////////////////
 void frameISR() {
@@ -494,22 +495,27 @@ void printHelp() {
   Serial.println("BlackFly Camera to LED Illumination Sync Help");
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
+  Serial.println("-------------------------------------------------");
+  Serial.println("Work Flow:")
+  Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");
   Serial.println("  d: set the duty cycle");
   Serial.println("  r: set resolution in bits");
   Serial.println("1 Load working channel from EEPROM: e.g. s0");
-  Serial.println("2 Adjust working channel");
+  Serial.println("2 Adjust working channel:");
   Serial.println("  p: set the pin associated to working channel");
   Serial.println("  d: set intensity of working channel 0..100");
-  Serial.println("  m/M: disable/enable the working channel");  
-  Serial.println("3 Save working channel: S0");
-  Serial.println("4 Enable Auto Advance: A (pls check all settings first)");
+  Serial.println("  m: disable the current working channel");  
+  Serial.println("  M: enable the current working channel");  
+  Serial.println("3 Save working channel: e.g. S0");
+  Serial.println("4 Enable Auto Advance: A (pls verify all settings first)");
   Serial.println("5 Save channel configurations to EEPROM: E");
+  Serial.println("-------------------------------------------------");
   Serial.println("------- Data Input--------------------------------");
   Serial.println("p5   set current working pin to 5");
   Serial.println("d50  set duty cyle to 50%");
-  Serial.println("m/M  disable/enable current working pin"); 
+  Serial.println("m/M  disable/enable current working channel"); 
   Serial.println("f512 set frequency to 512Hz");
   Serial.println("r8   set PWM resolution to 8 bits");
   Serial.println("-------------------------------------------------");
@@ -722,24 +728,24 @@ void processInstruction(String instruction) {
 
   } else if (command == 'm') { // turn on/off
     // ENABLE/DISABLE  //////////////////////////////////////////////////////////
-    if (isIO(Pin) || (Pin == 99)) {
+    if isIO(Pin) {
       digitalWrite(Pin,  TURN_OFF);
-      PWM_Enabled = false;
       Serial.printf("Pin %d is off\r\n", Pin);
     } else {
       Serial.printf("Pin %d is not a DIO pin.\r\n", Pin);
     }
+    PWM_Enabled = false;
 
   } else if (command == 'M') { // turn on PWM
-    if (isIO(Pin) || (Pin==99)) {
+    if isIO(Pin)) {
       digitalWrite(Pin,  TURN_ON);
-      PWM_Enabled = true;
       Serial.printf("Pin %d is on\n", Pin);
     } else {
       Serial.printf("Pin %d is not a DIO pin.\r\n", Pin);
     }
+    PWM_Enabled = true;
 
-  } else if (command == 's') { // load duty and pin for channel
+  } else if (command == 's') {
     // Load & Save Channel Settings////////////////////////////////////////////////
     tempInt = value.toInt();      
     if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) { // cehck boundaries      
@@ -752,11 +758,8 @@ void processInstruction(String instruction) {
       Serial.printf("PWM Duty:            %5.2f\r\n", DutyCycle);
       Serial.printf("PWM Frequency: %11.2f\r\n",PWM_Frequency);
       Serial.printf("Channel:       %s\r\n",    PWM_Enabled?" Enabled":"Disabled");
-      if (PWM_Enabled) {
-        if      (isIO(Pin))     { digitalWrite(LEDs[chWorking],  TURN_ON);}
-      } else {
-        if      (isIO(Pin))     { digitalWrite(LEDs[chWorking],  TURN_OFF);}
-      }
+      if (PWM_Enabled) { if (isIO(Pin)) { digitalWrite(LEDs[chWorking],  TURN_ON);} }
+      else             { if (isIO(Pin)) { digitalWrite(LEDs[chWorking],  TURN_OFF);} }
     } else { Serial.println("Channel out of valid Range.");   }
   } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
       tempInt = value.toInt();      
@@ -764,9 +767,11 @@ void processInstruction(String instruction) {
         chWorking = tempInt;
         LEDs[chWorking]        = Pin;
         LEDsEnable[chWorking]  = PWM_Enabled;       
-        LEDsInten[chWorking]   = DutyCycle;       
-        if (PWM_INV) { LEDsIntenI[chWorking] = uint16_t(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
-        else         { LEDsIntenI[chWorking] = uint16_t(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
+        LEDsInten[chWorking]   = DutyCycle;
+        if (isIO(LEDs[chWorking])) {
+          if (PWM_INV) { LEDsIntenI[chWorking] = uint16_t(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
+          else         { LEDsIntenI[chWorking] = uint16_t(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
+        } else         { LEDsIntenI[chWorking] = uint16_t(0); }
         Serial.printf("Channel %d saved.\r\n",chWorking);
       } else { Serial.printf("Channel %d out of valid Range.\r\n",chWorking);}
       

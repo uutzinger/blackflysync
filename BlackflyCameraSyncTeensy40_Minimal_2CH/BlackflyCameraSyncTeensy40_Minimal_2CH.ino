@@ -472,16 +472,20 @@ void printHelp() {
   Serial.println("BlackFly Camera to LED Illumination Sync Help");
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
+  Serial.println("-------------------------------------------------");
+  Serial.println("Work Flow:")
+  Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");
   Serial.println("  d: set the duty cycle");
   Serial.println("  r: set resolution in bits");
   Serial.println("1 Load working channel from EEPROM: e.g. s0");
-  Serial.println("2 Adjust working channel");
+  Serial.println("2 Adjust working channel:");
   Serial.println("  d: set intensity of working channel 0..100");
   Serial.println("3 Save working channel: S0");
   Serial.println("4 Enable Auto Advance: A");
   Serial.println("5 Save channel configurations to EEPROM: E");
+  Serial.println("-------------------------------------------------");
   Serial.println("------- Data Input--------------------------------");
   Serial.println("d50  set duty cyle to 50%");
   Serial.println("f512 set frequency to 512Hz");

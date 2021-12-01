@@ -69,9 +69,10 @@
 // QuadTimer 3.611kHz
 
 // *********************************************************************************************//
+// ISR States
 // ------------------------------------------------------------------------
-// Autoadvance:     Autoadvance to next channel when external Frame Trigger occurs
-// No Autoadvance:  User is adjusting a single channel
+// Autoadvance:  Autoadvance to next channel when external Frame Trigger occurs
+// Manual:       User is adjusting a single channel
 // ------------------------------------------------------------------------
 volatile bool AutoAdvance = false;              // Auto (true) or Manual
 // 
@@ -113,13 +114,13 @@ bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporti
 
 // ------------------------------------------------------------------------
 // This depends on the hardware logic of the FET driver and FET of your circuit
-#define TURN_ON  HIGH       // Adjust if you have inverted logic for ON/OFF
-#define TURN_OFF LOW        // 
-#define PWM_INV  true       // If true, high on PWM pin represents OFF
+#define TURN_ON  HIGH           // Adjust if you have inverted logic for ON/OFF
+#define TURN_OFF LOW            // 
+#define PWM_INV  true           // If true, high on PWM pin represents OFF
 #define INTERRUPTTRIGGER RISING // Can be RISING or FALLING
-// You can change the LED right after exposure is completed or within first few miroseconds
+// You can advance to the next LED right after exposure is completed or within first few miroseconds
 // after camera starts measuring. Ideal is after current exposure: 
-// With inverted FRAME_EXPOSURE signal that would be the rising edge of the rtigger signal
+// With inverted FRAME_EXPOSURE signal that would be the rising edge of the trigger signal
 
 // ------------------------------------------------------------------------
 // LED channel configuration
@@ -473,17 +474,21 @@ void printHelp() {
   Serial.println("BlackFly Camera to LED Illumination Sync Help");
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
+  Serial.println("-------------------------------------------------");
+  Serial.println("Work Flow:")
+  Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");
   Serial.println("  d: set the duty cycle");
   Serial.println("  r: set resolution in bits");
   Serial.println("1 Load working channel from EEPROM: e.g. s0");
-  Serial.println("2 Adjust working channel");
+  Serial.println("2 Adjust working channel:");
   Serial.println("  d: set intensity of working channel 0..100");
   Serial.println("  M: enable current channel");
   Serial.println("  m: disable current channel");  
   Serial.println("3 Save working channel: S0");
-  Serial.println("4 Enable Auto Advance: A (pls verify settings for all channels first)");
+  Serial.println("4 Enable Auto Advance: A (pls verify all settings first)");
+  Serial.println("-------------------------------------------------");
   Serial.println("5 Save channel configurations to EEPROM: E");
   Serial.println("------- Data Input--------------------------------");
   Serial.println("d50  set duty cyle to 50%");
@@ -647,7 +652,7 @@ void processInstruction(String instruction) {
     PWM_Enabled = true;
     Serial.printf("Pin %d is on\n", LEDs[chWorking]);
 
-  } else if (command == 's') { // load duty cycle for channel
+  } else if (command == 's') {
     // Load & Save Channel Settings////////////////////////////////////////////////
     tempInt = value.toInt();      
     if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) { // cehck boundaries      
