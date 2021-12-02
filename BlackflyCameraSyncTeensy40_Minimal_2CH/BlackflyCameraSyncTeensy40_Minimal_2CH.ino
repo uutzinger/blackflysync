@@ -473,7 +473,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
   Serial.println("-------------------------------------------------");
-  Serial.println("Work Flow:")
+  Serial.println("Work Flow:");
   Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");

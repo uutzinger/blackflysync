@@ -52,7 +52,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.4.0"
+#define VERSION "1.4.1"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -496,7 +496,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
   Serial.println("-------------------------------------------------");
-  Serial.println("Work Flow:")
+  Serial.println("Work Flow:");
   Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");
@@ -554,7 +554,7 @@ void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.printf( "State is:             %s\r\n", AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
-  Serial.printf( "Working on pin: %2d which is %s\n", Pin, PWM_Enabled?"on":"off");
+  Serial.printf( "Working on pin: %2d. Working channel is %d which is set to %s.\n", Pin, chWorking, PWM_Enabled?"enabled":"disabled");
   printChannels();
 }
 
@@ -728,20 +728,20 @@ void processInstruction(String instruction) {
 
   } else if (command == 'm') { // turn on/off
     // ENABLE/DISABLE  //////////////////////////////////////////////////////////
-    if isIO(Pin) {
+    if (isIO(Pin)) {
       digitalWrite(Pin,  TURN_OFF);
       Serial.printf("Pin %d is off\r\n", Pin);
     } else {
-      Serial.printf("Pin %d is not a DIO pin.\r\n", Pin);
+      Serial.printf("Enable flag set to off. No changes to hardware as pin %d is not a DIO pin.\r\n", Pin);
     }
     PWM_Enabled = false;
 
   } else if (command == 'M') { // turn on PWM
-    if isIO(Pin)) {
+    if (isIO(Pin)) {
       digitalWrite(Pin,  TURN_ON);
       Serial.printf("Pin %d is on\n", Pin);
     } else {
-      Serial.printf("Pin %d is not a DIO pin.\r\n", Pin);
+      Serial.printf("Enable flag set to on. No changes to hardware as pin %d is not a DIO pin.\r\n", Pin);
     }
     PWM_Enabled = true;
 
