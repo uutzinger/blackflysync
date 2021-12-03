@@ -587,10 +587,10 @@ void processInstruction(String instruction) {
   String value    = "0.01";
   String command  = "o";
   float  tempFloat;
-  long   tempInt;
+  unsigned int tempInt;
   int instructionLength = instruction.length();
   if (instructionLength > 0) { command = instruction.substring(0,1); } 
-  if (instructionLength > 1) {   value = instruction.substring(1,instructionLength); }
+  if (instructionLength > 1) {   value = instruction.substring(1); }
   //mySerial.println(command);
   //mySerial.println(value);
 
@@ -655,7 +655,7 @@ void processInstruction(String instruction) {
   } else if (command == 's') {
     // Load & Save Channel Settings////////////////////////////////////////////////
     tempInt = value.toInt();      
-    if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) { // cehck boundaries      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // cehck boundaries      
       chWorking   = tempInt;
       DutyCycle   = LEDsInten[chWorking];
       Serial.printf("Current Channel:     %2d\r\n",   chWorking);
@@ -669,7 +669,7 @@ void processInstruction(String instruction) {
     
   } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
     tempInt = value.toInt();      
-    if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) {      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) {      
       chWorking = tempInt;
       LEDsInten[chWorking] = DutyCycle;
       if (isIO(LEDs[chWorking])) {

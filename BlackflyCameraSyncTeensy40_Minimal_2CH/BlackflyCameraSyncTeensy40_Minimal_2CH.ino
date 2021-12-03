@@ -583,31 +583,31 @@ void processInstruction(String instruction) {
   String value    = "0.01";
   String command  = "o";
   float  tempFloat;
-  long   tempInt;
+  unsigned int tempInt;
   int instructionLength = instruction.length();
   if (instructionLength > 0) { command = instruction.substring(0,1); } 
-  if (instructionLength > 1) {   value = instruction.substring(1,instructionLength); }
+  if (instructionLength > 1) {   value = instruction.substring(1); }
   //mySerial.println(command);
   //mySerial.println(value);
 
-  if        (command == 'a') { // manual mode
+  if        ( command == 'a' ) { // manual mode
     // ENABLE/DISABLE Autodavance based on Frame Trigger////////////////////////////
     AutoAdvance = false;    
     Serial.println("Manual");
-  } else if (command == 'A') { // auto advance
+  } else if ( command == 'A' ) { // auto advance
     AutoAdvance = true;
     Serial.println("Auto");
         
-  } else if (command == 'x') { // channel settings
+  } else if ( command == 'x' ) { // channel settings
     printChannels();
 
-  } else if ( command == 'i') { // system information
+  } else if ( command == 'i' ) { // system information
     printSystemInformation();
 
-  } else if ( command == 'I') { // system information
+  } else if ( command == 'I' ) { // system information
     printPinInformation();
 
-  } else if ( command == 'e') { // read EEPROM
+  } else if ( command == 'e' ) { // read EEPROM
     EEPROM.get(eepromAddress, mySettings);
     if (mySettings.valid == EEPROM_VALID) { // apply settings because EEPROM has valid settings
       PWM_Frequency  = mySettings.PWM_Frequency;
@@ -625,7 +625,7 @@ void processInstruction(String instruction) {
       Serial.println("EEPROM read.");
     } else { Serial.println("EEPROM settings not valid, not applied."); }
 
-  } else if (command == 'E') { // saveEEPROM
+  } else if ( command == 'E' ) { // saveEEPROM
     mySettings.valid           = EEPROM_VALID;  // make EEPROM settings valid
     mySettings.PWM_Frequency   = PWM_Frequency;
     mySettings.PWM_Resolution  = PWM_Resolution;
@@ -637,21 +637,21 @@ void processInstruction(String instruction) {
     EEPROM.put(eepromAddress, mySettings);
     Serial.println("Settings saved to EEPROM");
 
-  } else if (command == 'm') { // turn on/off
+  } else if ( command == 'm' ) { // turn on/off
     // ENABLE/DISABLE  //////////////////////////////////////////////////////////
     digitalWrite(LEDs[chWorking],  TURN_OFF);
     PWM_Enabled = false;
     Serial.printf("Pin %d is off\r\n", LEDs[chWorking]);
 
-  } else if (command == 'M') { // turn on PWM
+  } else if ( command == 'M' ) { // turn on PWM
     digitalWrite(LEDs[chWorking],  TURN_ON);
     PWM_Enabled = true;
     Serial.printf("Pin %d is on\n", LEDs[chWorking]);
 
-  } else if (command == 's') { // load duty cycle for channel
+  } else if ( command == 's' ) { // load duty cycle for channel
     // Load & Save Channel Settings////////////////////////////////////////////////
     tempInt = value.toInt();      
-    if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) { // cehck boundaries      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // check boundaries      
       chWorking   = tempInt;
       DutyCycle   = LEDsInten[chWorking];
       Serial.printf("Current Channel:     %2d\r\n",   chWorking);
@@ -663,9 +663,9 @@ void processInstruction(String instruction) {
       else             { digitalWrite(LEDs[chWorking], TURN_OFF); }
     } else { Serial.println("Channel out of valid Range.");   }
     
-  } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
+  } else if ( command == 'S' ) { // save duty cycle and enable/disable and pin into selected channel
     tempInt = value.toInt();      
-    if ((tempInt >=0) || (tempInt < NUM_CHANNELS)) {      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) {      
       chWorking = tempInt;
       LEDsInten[chWorking] = DutyCycle;
       if (isIO(LEDs[chWorking])) {
@@ -675,7 +675,7 @@ void processInstruction(String instruction) {
       Serial.printf("Channel %d saved.\r\n",chWorking);
     } else { Serial.printf("Channel %d out of valid Range.\r\n",chWorking);}
       
-  } else if (command == 'd') { // duty cycle
+  } else if ( command == 'd' ) { // duty cycle
     // SET DUTY CYCLE /////////////////////////////////////////////////////////////
     tempFloat = value.toFloat();
     if ((tempFloat < 0.0) || (tempFloat > 100.0)) { // check boundaries
@@ -686,7 +686,7 @@ void processInstruction(String instruction) {
       Serial.printf("Duty Cycle set to: %+4.3f\n", DutyCycle);
     }
 
-  } else if (command == 'f') { // frequency
+  } else if ( command == 'f' ) { // frequency
     // SET Frequency //////////////////////////////////////////////////////////////
     float tempFloat = value.toFloat();
     if (isPWM(PWM)) {
@@ -700,7 +700,7 @@ void processInstruction(String instruction) {
       }
     }
 
-  } else if (command == 'r') { // resolution of pulse width modulation
+  } else if ( command == 'r' ) { // resolution of pulse width modulation
     // SET Resolution ////////////////////////////////////////////////////////////
     tempInt = value.toInt();
       if ((tempInt < 2) || (tempInt > 15)) { // check boundary
@@ -717,15 +717,15 @@ void processInstruction(String instruction) {
         Serial.printf("PWM Frequency adjusted to: %10.2f\r\n", PWM_Frequency);
       }
     
-  } else if (command == 'Z') { // resolution of pulse width modulation
+  } else if ( command == 'Z' ) { // resolution of pulse width modulation
     for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWriteFast(LEDs[i],TURN_OFF); } 
     Serial.println("Turned all channels off");
   
-  } else if (command == '\n') { // ignore
+  } else if ( command == '\n') { // ignore
     // Ignore Carriage Return //////////////////////////////////////////////////////////////
     printHelp();
 
-  } else if ((command == '?') || (command == 'h')) { // send HELP information
+  } else if (( command == '?' ) || ( command == 'h' )) { // send HELP information
     // HELP //////////////////////////////////////////////////////////////
     printHelp();
   }
