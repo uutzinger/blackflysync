@@ -583,7 +583,7 @@ void processInstruction(String instruction) {
   String value    = "0.01";
   String command  = "o";
   float  tempFloat;
-  unsigned int tempInt;
+  int tempInt;
   int instructionLength = instruction.length();
   if (instructionLength > 0) { command = instruction.substring(0,1); } 
   if (instructionLength > 1) {   value = instruction.substring(1); }

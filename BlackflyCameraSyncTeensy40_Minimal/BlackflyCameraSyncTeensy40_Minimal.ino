@@ -207,7 +207,7 @@ void setup(){
   // Configure output pins, set them all to off/low
   // LEDs
   for (int i=0; i<NUM_CHANNELS; i++) {
-    if (isIO(LEDs[i])) {
+    if (isIO((uint8_t)LEDs[i])) {
       pinMode(LEDs[i], OUTPUT); 
       digitalWrite(LEDs[i],  TURN_OFF);
     }
@@ -234,13 +234,13 @@ void setup(){
     PWM_Frequency  = GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution); 
     PWM_MaxValue   = pow(2,PWM_Resolution)-1;
     DutyCycle      = 5.0;
-    for (int i=0; i<NUM_CHANNELS; i++) { if (isIO(LEDs[i])) {LEDsInten[i]  = 5.;} else {LEDsInten[i]  = 0.;} }
+    for (int i=0; i<NUM_CHANNELS; i++) { if (isIO((uint8_t)LEDs[i])) {LEDsInten[i]  = 5.;} else {LEDsInten[i]  = 0.;} }
     AutoAdvance     = false;
   }
   
   // convert the PWM % to actual PWM number
   for (int i=0; i<NUM_CHANNELS; i++) {
-    if (isIO(LEDs[i])) {
+    if (isIO((uint8_t)LEDs[i])) {
       if (PWM_INV) { LEDsIntenI[i] = uint16_t(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
       else         { LEDsIntenI[i] = uint16_t(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
     } else         { LEDsIntenI[i] = uint16_t(0); }
@@ -249,7 +249,7 @@ void setup(){
   // Input Pins
   pinMode(CAMTRG, INPUT_PULLUP);  // Frame trigger
 
-  if ( isIO(POWERSWITCH) ) { pinMode(POWERSWITCH, INPUT_PULLUP); }  // initialize pin for power switch
+  if ( isIO((uint8_t)POWERSWITCH) ) { pinMode(POWERSWITCH, INPUT_PULLUP); }  // initialize pin for power switch
 
   // Set PWM source
   setupPWM(PWM_Frequency, DutyCycle, PWM_Resolution);
@@ -572,7 +572,7 @@ void listPins() {
   char pinType[] = "Hard";
   Serial.println("Available Pins for PWM");
   Serial.println("-------------------------------------------------");
-  for (int i=0; i<40; i++){
+  for (uint8_t i=0; i<40; i++){
     if      (isPWM(i))     {strcpy(pinType, "PWM");}
     else if (isIO(i))      {strcpy(pinType, "DIO");}
     else                   {strcpy(pinType, "N.A.");}
@@ -620,7 +620,7 @@ void processInstruction(String instruction) {
       DutyCycle      = mySettings.DutyCycle;
       for (int i=0; i<NUM_CHANNELS; i++) {
         LEDsInten[i] = mySettings.LEDsInten[i];
-        if (isIO(LEDs[i])) {
+        if (isIO((uint8_t)LEDs[i])) {
           if (PWM_INV) { LEDsIntenI[i] = uint16_t(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
           else         { LEDsIntenI[i] = uint16_t(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
         } else         { LEDsIntenI[i] = uint16_t(0); }
@@ -672,7 +672,7 @@ void processInstruction(String instruction) {
     if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) {      
       chWorking = tempInt;
       LEDsInten[chWorking] = DutyCycle;
-      if (isIO(LEDs[chWorking])) {
+      if (isIO((uint8_t)LEDs[chWorking])) {
         if (PWM_INV) { LEDsIntenI[chWorking] = uint16_t(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
         else         { LEDsIntenI[chWorking] = uint16_t(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
       } else         { LEDsIntenI[chWorking] = uint16_t(0); }
@@ -693,7 +693,7 @@ void processInstruction(String instruction) {
   } else if (command == 'f') { // frequency
     // SET Frequency //////////////////////////////////////////////////////////////
     float tempFloat = value.toFloat();
-    if (isPWM(PWM)) {
+    if (isPWM((uint8_t)PWM)) {
       Serial.printf("Desired Frequency: %10.2f\r\n", tempFloat);
       if (tempFloat <= GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution)) {
         PWM_Frequency = tempFloat;
