@@ -52,7 +52,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.4.1"
+#define VERSION "1.4.3"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -82,7 +82,7 @@ volatile bool AutoAdvance = false;              // Auto (true) or Manual
 // The bouncing block values is in microseconds;
 // With 500 frames per second we have frame trigger every 2000 micro seconds
 // therore the bounce block should be less than 2 ms long
-											
+
 // ------------------------------------------------------------------------
 // Controlling Reporting and Input Output
 // ------------------------------------------------------------------------
@@ -131,7 +131,7 @@ volatile int                     chCurrent = 0;   // Start LED cycke at LED[0]
 volatile int            LEDs[NUM_CHANNELS] = {CH1,  CH2,  CH3,  CH4,  CH5,  CH6,  CH7,  CH8,  CH9,  CH10,  CH11,  CH12,  CH13,  BACKGND }; // LEDs
 volatile bool     LEDsEnable[NUM_CHANNELS] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
 float              LEDsInten[NUM_CHANNELS] = {5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,     5.,     5.,     5.,     5.};     // PWM in %
-volatile uint16_t LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,    12,    12,    12,    12,    12,     12,     12,     12,     12};     // PWM in raw numbers, max depends on PWM resolution
+volatile int      LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,    12,    12,    12,    12,    12,     12,     12,     12,     12};     // PWM in raw numbers, max depends on PWM resolution
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // You should not need to change values below                                                   //
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +142,7 @@ volatile uint16_t LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,   
 volatile long lastInterrupt; // keep time when interrup occured 
 volatile bool myPreviousAdvance = false;
 volatile unsigned int frameTriggerOccurred = 0;
-volatile unsigned long lastTriggerTime = 0;																										
+volatile unsigned long lastTriggerTime = 0;
 
 // ------------------------------------------------------------------------
 // EEPROM configuration
@@ -160,7 +160,7 @@ struct EEPROMsettings {                  // Setting structure
   unsigned int PWM_Resolution;           // Check teensy specs, smaller resolution, higher PWM clock
   int          CameraTrigger;            // Input pin for trigger
   int          PowerSwitch;              // Input pin for on/off optional
-  unsigned int PWM_Pin;                  // Output pin for PWM signal
+  int          PWM_Pin;                  // Output pin for PWM signal
   bool         AutoAdvance;              // Frame trigger turns on next LED
   };
 
@@ -177,7 +177,7 @@ unsigned long lastInAvail;               //
 unsigned long currentTime;               //
 unsigned long nextLEDCheck;              //
 unsigned long lastFrameTrigger;          // timout LEDs
-bool Stopped = false;																				
+bool Stopped = false;
 
 // ------------------------------------------------------------------------
 // Indicator
@@ -187,8 +187,8 @@ bool ledStatus = false;                  // Led should be off at start up
 // ------------------------------------------------------------------------
 // Main System and PWM working variables
 // ------------------------------------------------------------------------
-int           Pin            = CH1;          //
-volatile unsigned int PWM_Pin= PWM;           //
+int           Pin            = CH1;           //
+volatile int  PWM_Pin        = PWM;           //
 bool          PWM_Enabled    = false;         //
 long          CPU_Frequency  = F_CPU / 1E6;   //
 float         PWM_Frequency  = 4577.64;       // Ideal 15 bit and 600MHz Teensy 4.0
@@ -225,8 +225,8 @@ void setup(){
       LEDs[i]       = mySettings.LEDs[i];      
       LEDsEnable[i] = mySettings.LEDsEnable[i];
       LEDsInten[i]  = mySettings.LEDsInten[i];
-      if (PWM_INV) { LEDsIntenI[i] = uint16_t(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
-      else         { LEDsIntenI[i] = uint16_t(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
+      if (PWM_INV) { LEDsIntenI[i] = int(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
+      else         { LEDsIntenI[i] = int(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
     }
     AutoAdvance     = mySettings.AutoAdvance;
   } else {
@@ -240,20 +240,21 @@ void setup(){
       LEDs[i]       = tmp[i];      
       LEDsEnable[i] = false; 
       LEDsInten[i]  = 5.;
+      LEDsIntenI[i] = int( LEDsInten[i]  / 100. * float(PWM_MaxValue) );
     }
     AutoAdvance     = false;
   }
 
   // Configure output pins, set them all to off/low
   for (int i=0; i<NUM_CHANNELS; i++) {
-    if (isIO((uint8_t)LEDs[i])) {
-		pinMode(LEDs[i], OUTPUT); 														
-		digitalWrite(LEDs[i], TURN_OFF);
+    if (isIO(LEDs[i])) {
+		  pinMode(LEDs[i],   OUTPUT); 														
+		  digitalWrite(LEDs[i], TURN_OFF);
     }
   }
 
-  pinMode(PWM,         OUTPUT); if (PWM_INV) {digitalWrite(PWM, HIGH);} else {digitalWrite(PWM, LOW);}
-  pinMode(LEDPIN,      OUTPUT); digitalWrite(LEDPIN,LOW ); ledStatus = false;
+  pinMode(PWM,           OUTPUT); if (PWM_INV) {digitalWrite(PWM, HIGH);} else {digitalWrite(PWM, LOW);}
+  pinMode(LEDPIN,        OUTPUT); digitalWrite(LEDPIN,LOW ); ledStatus = false;
 
   // Input Pins
   pinMode(CameraTrigger, INPUT_PULLUP);  // Frame trigger
@@ -273,7 +274,7 @@ void setup(){
   // Frame Trigger, required
   attachInterrupt(digitalPinToInterrupt(CameraTrigger), frameISR, INTERRUPTTRIGGER); // Frame start
   // Power Button, if button is not existing pin, dont enable this, e.g. -1
-  if ( isIO((uint8_t)POWERSWITCH) ) { attachInterrupt(digitalPinToInterrupt(PowerSwitch), onOff, CHANGE); } // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
+  if ( isIO(POWERSWITCH) ) { attachInterrupt(digitalPinToInterrupt(PowerSwitch), onOff, CHANGE); } // Create interrupt on pin for power switch. Trigger when there is a change detected (button is pressed)
 
   // House keeping
   lastInAvail = lastInterrupt = nextLEDCheck = micros();
@@ -311,9 +312,9 @@ void loop(){
   //////////////////////////////////////////////////////////////////
   if (frameTriggerOccurred > 0) { // blink
     ledStatus = !ledStatus;
-    digitalWriteFast(LEDPIN, ledStatus); // blink
+    digitalWriteFast(LEDPIN, ledStatus ? HIGH : LOW); // blink
     nextLEDCheck = currentTime + LEDON_INTERVAL;
-    if (SERIAL_REPORTING) {Serial.printf("Triggered! %u times, Channel: %i, Intensity %hu, %s\r\n",frameTriggerOccurred, chCurrent, LEDsIntenI[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
+    if (SERIAL_REPORTING) {Serial.printf("Triggered! %u times, Channel: %i, Intensity %d, %s\r\n",frameTriggerOccurred, chCurrent, LEDsIntenI[chCurrent], LEDsEnable[chCurrent]?"on":"off");}
     frameTriggerOccurred = 0; // reset signal
     lastFrameTrigger = currentTime;
     Stopped = false;
@@ -322,12 +323,12 @@ void loop(){
       if (ledStatus) {
         // LED is ON
         ledStatus = false; 
-        digitalWriteFast(LEDPIN, ledStatus);                        // turn off
+        digitalWriteFast(LEDPIN, ledStatus ? HIGH : LOW);                        // turn off
         nextLEDCheck = currentTime + LEDOFF_INTERVAL;
       } else {
         // LED is OFF
         ledStatus = true;
-        digitalWriteFast(LEDPIN, ledStatus);                        // turn on
+        digitalWriteFast(LEDPIN, ledStatus ? HIGH : LOW);                        // turn on
         nextLEDCheck = currentTime + LEDON_INTERVAL;
       }
     }
@@ -339,7 +340,7 @@ void loop(){
   if (AutoAdvance && (Stopped==false)) {
     if ( (currentTime -lastFrameTrigger) > 5000000) {
       for (int i=0; i<NUM_CHANNELS; i++) {
-        if ( (LEDsEnable[i]==true) && isIO((uint8_t)LEDs[i]) ) { digitalWrite(LEDs[i],TURN_OFF); }     
+        if ( (LEDsEnable[i]==true) && isIO(LEDs[i]) ) { digitalWrite(LEDs[i],TURN_OFF); }     
       }
       Stopped = true;
       if (SERIAL_REPORTING) { Serial.println("Turned off all LEDs"); }
@@ -348,9 +349,9 @@ void loop(){
   
   // Main loop delay. Limits how often this loop is running
   //////////////////////////////////////////////////////////////////
-  long myDelay = (POLL_INTERVAL - (long)(micros() - currentTime) ); // how long do we need to wait?
+  long myDelay = (POLL_INTERVAL - (long)micros() - (long)currentTime) ); // how long do we need to wait?
   if (myDelay > 0) {
-    delayMicroseconds(myDelay);  // wait
+    delayMicroseconds((unsigned int)myDelay);  // wait
   }
   
 } 
@@ -423,7 +424,7 @@ void onOff() {
 
 // Teensy 4.0 realtion between PWM frequency and PWM resolution
 //////////////////////////////////////////////////////////////////
-float GetMaxPWMFreqValue(long FREQ, int PWM_Resolution)
+float GetMaxPWMFreqValue(long FREQ, unsigned int PWM_Resolution)
 {
   /* for Teensy CPU frequencies are
       24MHZ
@@ -449,18 +450,18 @@ float GetMaxPWMFreqValue(long FREQ, int PWM_Resolution)
     case 600: FREQ_pointer =  2; break;
     default:  FREQ_pointer = -1; break;
   }
-  if (FREQ_pointer >= 0) { return (PWM_ideal_frequency[FREQ_pointer][PWM_Resolution - 2]); } 
+  if (FREQ_pointer >= 0) { return (PWM_ideal_frequency[FREQ_pointer][(int)PWM_Resolution - 2]); } 
   else { return (4482); }
 } // end of getMaxPWMFreqValue
 
 // Setup PWM modulation on a pin
 // This is slow and should only be used for setup and not to change dutycyle
 //////////////////////////////////////////////////////////////////
-void setupPWM(unsigned int PWM_Pin, float PWM_Freq, float Duty, unsigned int Resolution) {
-  if (isPWM((uint8_t)PWM_Pin)) {
+void setupPWM(int PWM_Pin, float PWM_Freq, float Duty, unsigned int PWM_Resolution) {
+  if (isPWM(PWM_Pin)) {
     if ((PWM_Resolution >= 2) && (PWM_Resolution <= 15)) { // check bounds
       analogWriteResolution(PWM_Resolution);    // change resolution
-      PWM_MaxValue = pow(2, PWM_Resolution)-1; // update global
+      PWM_MaxValue = pow(2, PWM_Resolution)-1;  // update global
     }
     if (PWM_Freq > GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution)) {
       PWM_Freq = GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution);
@@ -470,10 +471,10 @@ void setupPWM(unsigned int PWM_Pin, float PWM_Freq, float Duty, unsigned int Res
     if ( (Duty > ((1./float(PWM_MaxValue))*100.)) && (Duty < 100.0)) {    
       if (PWM_INV) {
         // PWM signal high turns the LED off
-        analogWrite(PWM_Pin, uint16_t((100.0-Duty) / 100.0 * float(PWM_MaxValue)));
+        analogWrite(PWM_Pin, int((100.0-Duty) / 100.0 * float(PWM_MaxValue)));
       } else {
         // PWM signal high turns the LED on
-        analogWrite(PWM_Pin, uint16_t(Duty / 100.0 * float(PWM_MaxValue)));
+        analogWrite(PWM_Pin, int(Duty / 100.0 * float(PWM_MaxValue)));
       }
       DutyCycle = Duty;                          // update global
     } else if (Duty <= (1./float(PWM_MaxValue))*100.) {
@@ -542,17 +543,17 @@ void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.println("BlackFly Camera to LED Illumination Sync Status");
   Serial.println("-------------------------------------------------");
-  Serial.printf( "Software version:     %s\r\n", VERSION);
-  Serial.printf( "CPU:                  %2d MHz\r\n", CPU_Frequency);
-  Serial.printf( "PWM pin:              %d\r\n", PWM_Pin);
-  Serial.printf( "Frequency:            %.2f Hz\r\n", PWM_Frequency);
+  Serial.printf( "Software version:     %s\r\n",        VERSION);
+  Serial.printf( "CPU:                  %2d MHz\r\n",   CPU_Frequency);
+  Serial.printf( "PWM pin:              %d\r\n",        PWM_Pin);
+  Serial.printf( "Frequency:            %.2f Hz\r\n",   PWM_Frequency);
   Serial.printf( "Current Duty:         %.2f [%%]\r\n", DutyCycle);
-  Serial.printf( "Current Resolution:   %d bit\r\n", PWM_Resolution);
-  Serial.printf( "PWM Max:              %d\r\n", PWM_MaxValue);
-  Serial.printf( "Camera trigger is on: %d\r\n", CameraTrigger);
-  Serial.printf( "Power switch:         %d\r\n", PowerSwitch);
+  Serial.printf( "Current Resolution:   %d bit\r\n",    PWM_Resolution);
+  Serial.printf( "PWM Max:              %d\r\n",        PWM_MaxValue);
+  Serial.printf( "Camera trigger is on: %d\r\n",        CameraTrigger);
+  Serial.printf( "Power switch:         %d\r\n",        PowerSwitch);
   Serial.println("-------------------------------------------------");
-  Serial.printf( "State is:             %s\r\n", AutoAdvance?"Auto":"Manual");
+  Serial.printf( "State is:             %s\r\n",        AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
   Serial.printf( "Working on pin: %2d. Working channel is %d which is set to %s.\n", Pin, chWorking, PWM_Enabled?"enabled":"disabled");
   printChannels();
@@ -564,7 +565,7 @@ void printChannels() {
     Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
     Serial.printf( " Enabled: %s", LEDsEnable[i]?"Yes":" No"); 
     Serial.printf( " Duty: %6.2f",  LEDsInten[i]); 
-    Serial.printf( " Duty Raw: %hu\r\n",  LEDsIntenI[i]); 
+    Serial.printf( " Duty Raw: %d\r\n",  LEDsIntenI[i]); 
   }
 }
 
@@ -579,20 +580,20 @@ void listFrequencies()
 {
   Serial.println("-------------------------------------------------");
   for(int i=2; i<=15; i++) {
-    Serial.printf("Resolution: %2d bit, Frequency: %11.2f\r\n", i, GetMaxPWMFreqValue(CPU_Frequency, i));
+    Serial.printf("Resolution: %2d bit, Frequency: %11.2f\r\n", i, GetMaxPWMFreqValue(CPU_Frequency, (unsigned int) i));
   }
   Serial.println("Resolution: 16 bit, Frequency:        N.A.");
 } 
 
-boolean isPWM(uint8_t mypin) {
-  const uint8_t last = 31; // number of pins -1
-  const uint8_t pwmpins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,19,22,23,24,25,28,29,33,34,35,36,37,38,39};
-  return std::binary_search(pwmpins, &pwmpins[last], (uint8_t)mypin);
+boolean isPWM(int mypin) {
+  const int last = 31; // number of pins -1
+  const int pwmpins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,19,22,23,24,25,28,29,33,34,35,36,37,38,39};
+  return std::binary_search(pwmpins, &pwmpins[last], mypin);
 }
 
-boolean isIO(uint8_t mypin) {
-  const uint8_t last = 38; // number of pins -1
-  const uint8_t iopins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39};
+boolean isIO(int mypin) {
+  const int last = 38; // number of pins -1
+  const int iopins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39};
   return std::binary_search(iopins, &iopins[last], mypin);
 }
 
@@ -600,7 +601,7 @@ void listPins() {
   char pinType[] = "Hard";
   Serial.println("Available Pins for PWM");
   Serial.println("-------------------------------------------------");
-  for (uint8_t i=0; i<40; i++){
+  for (int i=0; i<40; i++){
     if      (isPWM(i))     {strcpy(pinType, "PWM");}
     else if (isIO(i))      {strcpy(pinType, "DIO");}
     else                   {strcpy(pinType, "N.A.");}
@@ -650,7 +651,7 @@ void processInstruction(String instruction) {
       Serial.println("PWM pin not valid.");
     } else {
       digitalWrite(PWM_Pin, TURN_OFF);
-      PWM_Pin = (unsigned int)tempInt;
+      PWM_Pin = tempInt;
       pinMode(PWM_Pin, OUTPUT);
       setupPWM(PWM_Pin, PWM_Frequency, DutyCycle, PWM_Resolution);      
       Serial.printf("PWM Clock attached to: %d\r\n", PWM_Pin);
@@ -694,8 +695,8 @@ void processInstruction(String instruction) {
         LEDs[i]      = mySettings.LEDs[i];      
         LEDsEnable[i]= mySettings.LEDsEnable[i];
         LEDsInten[i] = mySettings.LEDsInten[i];
-        if (PWM_INV) { LEDsIntenI[i] = uint16_t(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
-        else         { LEDsIntenI[i] = uint16_t(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
+        if (PWM_INV) { LEDsIntenI[i] = int(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
+        else         { LEDsIntenI[i] = int(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
       }
       AutoAdvance    = mySettings.AutoAdvance;
       Serial.println("EEPROM read.");
@@ -728,7 +729,7 @@ void processInstruction(String instruction) {
 
   } else if (command == 'm') { // turn on/off
     // ENABLE/DISABLE  //////////////////////////////////////////////////////////
-    if (isIO((unsigned int)Pin)) {
+    if (isIO(Pin)) {
       digitalWrite(Pin,  TURN_OFF);
       Serial.printf("Pin %d is off\r\n", Pin);
     } else {
@@ -737,7 +738,7 @@ void processInstruction(String instruction) {
     PWM_Enabled = false;
 
   } else if (command == 'M') { // turn on PWM
-    if (isIO((unsigned int)Pin)) {
+    if (isIO(Pin)) {
       digitalWrite(Pin,  TURN_ON);
       Serial.printf("Pin %d is on\n", Pin);
     } else {
@@ -758,21 +759,21 @@ void processInstruction(String instruction) {
       Serial.printf("PWM Duty:            %5.2f\r\n", DutyCycle);
       Serial.printf("PWM Frequency: %11.2f\r\n",PWM_Frequency);
       Serial.printf("Channel:       %s\r\n",    PWM_Enabled?" Enabled":"Disabled");
-      if (PWM_Enabled) { if (isIO((unsigned int)Pin)) { digitalWrite(LEDs[chWorking],  TURN_ON);} }
-      else             { if (isIO((unsigned int)Pin)) { digitalWrite(LEDs[chWorking],  TURN_OFF);} }
+      if (PWM_Enabled) { if (isIO(Pin)) { digitalWrite(LEDs[chWorking],  TURN_ON);} }
+      else             { if (isIO(Pin)) { digitalWrite(LEDs[chWorking],  TURN_OFF);} }
     } else { Serial.println("Channel out of valid Range.");   }
 
   } else if (command == 'S') { // save duty cycle and enable/disable and pin into selected channel
       tempInt = value.toInt();      
       if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) {      
-        chWorking = tempInt;
+        chWorking              = tempInt;
         LEDs[chWorking]        = Pin;
         LEDsEnable[chWorking]  = PWM_Enabled;       
         LEDsInten[chWorking]   = DutyCycle;
-        if (isIO((uint8_t)LEDs[chWorking])) {
-          if (PWM_INV) { LEDsIntenI[chWorking] = uint16_t(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
-          else         { LEDsIntenI[chWorking] = uint16_t(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
-        } else         { LEDsIntenI[chWorking] = uint16_t(0); }
+        if (isIO(LEDs[chWorking])) {
+          if (PWM_INV) { LEDsIntenI[chWorking] = int(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
+          else         { LEDsIntenI[chWorking] = int(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
+        } else         { LEDsIntenI[chWorking] = int(0); }
         Serial.printf("Channel %d saved.\r\n",chWorking);
       } else { Serial.printf("Channel %d out of valid Range.\r\n",chWorking);}
       
@@ -790,7 +791,7 @@ void processInstruction(String instruction) {
   } else if (command == 'f') { // frequency
     // SET Frequency //////////////////////////////////////////////////////////////
     float tempFloat = value.toFloat();
-    if (isPWM((uint8_t)PWM_Pin)) {
+    if (isPWM(PWM_Pin)) {
       Serial.printf("Desired Frequency: %10.2f\r\n", tempFloat);
       if (tempFloat <= GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution)) {
         PWM_Frequency = tempFloat;
@@ -804,7 +805,7 @@ void processInstruction(String instruction) {
   } else if (command == 'r') { // resolution of pulse width modulation
     // SET Resolution ////////////////////////////////////////////////////////////
     tempInt = value.toInt();
-    if (isPWM((uint8_t)PWM_Pin)) {
+    if (isPWM(PWM_Pin)) {
       if ((tempInt < 2) || (tempInt > 15)) { // check boundary
         Serial.println("PWM Resolution out of valid Range.");
       } else {
@@ -824,14 +825,15 @@ void processInstruction(String instruction) {
 
   } else if (command == 'p') { // choose pin
     // Choose the pin //////////////////////////////////////////////////////////////
-    Pin = value.toInt();
-    if ( isIO( (uint8_t)Pin ) ) {
+    tempInt = value.toInt();
+    if ( isIO(tempInt) ) {
+      Pin = tempInt;
       pinMode(Pin, OUTPUT);
       if (PWM_Enabled) { digitalWrite(Pin,  TURN_ON); } else { digitalWrite(Pin, TURN_OFF); }
       Serial.printf("Changeing pin: %2d\r\n", Pin);
       Serial.printf("Pin is: %s\r\n", PWM_Enabled ? "on" : "off");
     } else {
-      Serial.println("Pin not available in hardware.");
+      Serial.println("Pin not available.");
     }
 
   } else if (command == 'Z') { 
