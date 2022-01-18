@@ -349,7 +349,7 @@ void loop(){
   
   // Main loop delay. Limits how often this loop is running
   //////////////////////////////////////////////////////////////////
-  long myDelay = (POLL_INTERVAL - (long)micros() - (long)currentTime) ); // how long do we need to wait?
+  long myDelay = (POLL_INTERVAL - (long)micros() - (long)currentTime ); // how long do we need to wait?
   if (myDelay > 0) {
     delayMicroseconds((unsigned int)myDelay);  // wait
   }
