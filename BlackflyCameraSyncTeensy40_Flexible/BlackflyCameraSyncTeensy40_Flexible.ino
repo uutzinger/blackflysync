@@ -534,7 +534,7 @@ void printHelp() {
   Serial.println("e/E  read/save settings to EEPROM");
   Serial.println("Z    turn off all channels");
   Serial.println("-------------------------------------------------");
-  Serial.println("Shannon McCoy, Urs Utzinger, 2020-21");
+  Serial.println("Shannon McCoy, Urs Utzinger, 2020-22");
   Serial.println("-------------------------------------------------");
 }
 
@@ -542,17 +542,17 @@ void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.println("BlackFly Camera to LED Illumination Sync Status");
   Serial.println("-------------------------------------------------");
-  Serial.printf( "Software version:     %s\r\n", VERSION);
-  Serial.printf( "CPU:                  %2d MHz\r\n", CPU_Frequency);
-  Serial.printf( "PWM pin:              %d\r\n", PWM_Pin);
-  Serial.printf( "Frequency:            %.2f Hz\r\n", PWM_Frequency);
+  Serial.printf( "Software version:     %s\r\n",        VERSION);
+  Serial.printf( "CPU:                  %2d MHz\r\n",   CPU_Frequency);
+  Serial.printf( "PWM pin:              %d\r\n",        PWM_Pin);
+  Serial.printf( "Frequency:            %.2f Hz\r\n",   PWM_Frequency);
   Serial.printf( "Current Duty:         %.2f [%%]\r\n", DutyCycle);
-  Serial.printf( "Current Resolution:   %d bit\r\n", PWM_Resolution);
-  Serial.printf( "PWM Max:              %d\r\n", PWM_MaxValue);
-  Serial.printf( "Camera trigger is on: %d\r\n", CameraTrigger);
-  Serial.printf( "Power switch:         %d\r\n", PowerSwitch);
+  Serial.printf( "Current Resolution:   %d bit\r\n",    PWM_Resolution);
+  Serial.printf( "PWM Max:              %d\r\n",        PWM_MaxValue);
+  Serial.printf( "Camera trigger is on: %d\r\n",        CameraTrigger);
+  Serial.printf( "Power switch:         %d\r\n",        PowerSwitch);
   Serial.println("-------------------------------------------------");
-  Serial.printf( "State is:             %s\r\n", AutoAdvance?"Auto":"Manual");
+  Serial.printf( "State is:             %s\r\n",        AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
   Serial.printf( "Working on pin: %2d. Working channel is %d which is set to %s.\n", Pin, chWorking, PWM_Enabled?"enabled":"disabled");
   printChannels();
