@@ -52,7 +52,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.4.3"
+#define VERSION "1.4.4"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -809,7 +809,7 @@ void processInstruction(String instruction) {
       if ((tempInt < 2) || (tempInt > 15)) { // check boundary
         Serial.println("PWM Resolution out of valid Range.");
       } else {
-        PWM_Resolution = (uint8_t)(tempInt);
+        PWM_Resolution = (unsigned int)(tempInt);
         PWM_MaxValue = pow(2, PWM_Resolution)-1;
         if (PWM_Frequency > GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution)) {
           PWM_Frequency = GetMaxPWMFreqValue(CPU_Frequency, PWM_Resolution);
