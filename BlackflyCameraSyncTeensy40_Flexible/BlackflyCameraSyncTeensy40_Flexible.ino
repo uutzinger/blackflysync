@@ -4,27 +4,27 @@
 //
 // Description
 // -----------
-// This program controls LED light source using PWM and camera frame sync.
-// It is designed to work with high frame rates and the limites of the microcontroller.
+// This program controls an LED light source using PWM and camera frame sync.
+// It is designed to work with high frame rates at the limites of the microcontroller.
 //
 // Requirements
 // ------------
-// This sofware requires a Teensy 4.x Microcontroller.
-// A digital frame sync is needed to cycle through the LEDs with each new camera frame.
+// Teensy 4.x Microcontroller.
+// Digital frame sync to cycle through the LEDs with each new camera frame.
 //
 // Setup
 // -----
 // To setup with a Blackfly Camera, the Output Line (Line 2, red) will need to be programmed 
-// to be the Frame Sync.  Best Configuration is with inverted logic, meaning signal high is 
-// no exposure and low is senors is colleccting light.
+// to be the Frame Sync.  Best Configuration is with inverted logic, meaning signal high indicates 
+// no light exposure and low that senors is colleccting light.
 // Check https://github.com/uutzinger/camera for python programs to setup the camera.
 //
 // Operation
 // ---------
-// This code cycles through up to 13 LEDs (+ background). 
+// This code cycles through up to 13 LEDs (+ background). You can modify the code for more LEDs.
 // The camera provides a trigger on the GPIO line, letting the teensy know that the sensor is 
 // exposed to light. 
-// The intensity of the lightsource is adjusted  using PWM  modulation. The digital modulation
+// The intensity of the lightsource is adjusted  using PWM  modulation. This digital modulation
 // can be used to drive the gate of LED power electronics.
 //
 // Shanon McCoy, Urs Utzinger, February, Summer, Fall 2021, Tucson Arizona, USA
@@ -48,7 +48,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.4.5"
+#define VERSION "1.4.6"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -69,19 +69,19 @@
 // Autoadvance: Autoadvance to next channel when external Frame Trigger occurs
 // Manual:      User is adjusting a single channel
 // ------------------------------------------------------------------------
-volatile bool AutoAdvance = false;              // Auto (true) or Manual
+volatile bool AutoAdvance = false;  // Auto (true) or Manual
 // 
 #define DEBOUNCEBLOCK 1800  
-// Oscillations on the frame trigger can occur when output is changed on teensy pins.
+// Oscillations on the frame trigger input can occur when channel output changes large currents.
 // It lasts a few micro seconds and is in the 10MHz range.
-// The de bouncing prevents triggers to be recognized for the amount of microseconds specified;
-// With 500 frames per second we have frame trigger every 2000 micro seconds
-// therore the bounce block should be less than 2 ms long
+// Debouncing prevents triggers to be recognized for the amount of microseconds specified;
+// With 500 frames per second we have a frame trigger every 2000 micro seconds
+// therore the bounce block should be less than 2 ms long. Adjust this value to your frame rate.
 
 // ------------------------------------------------------------------------
 // Controlling Reporting and Input Output
 // ------------------------------------------------------------------------
-bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporting on/off
+bool SERIAL_REPORTING = false;      // Boot messages and interrupt reporting on/off
 
 // ------------------------------------------------------------------------
 // Pin Names:
@@ -102,21 +102,24 @@ bool SERIAL_REPORTING = false;            // Boot messages and interrupt reporti
 #define CH12            14 // Connect to LED driver channel 12 (output)
 #define CH13            15 // Connect to LED driver channel 13 (output)
 #define PWM             22 // Connect to LED driver CLOCK (output)
-#define BACKGND         99 // Connect to LED driver virtual channel 99 (none)
-#define CAMTRG          21 // Camera frame trigger, needs to go to pin 8 (input)
-#define POWERSWITCH     -1 // External Button (input)
+#define BACKGND         99 // Connect to LED driver virtual channel 99 (pin 99 does not exist)
+#define CAMTRG          21 // Camera frame trigger, needs to go to pin 21 (input)
+#define POWERSWITCH     -1 // External Button (input), not conencted = -1
 
 // *********************************************************************************************//
-// The follwoing adjusts for the hardware logic of the LED power driver
+// The follwoing adjusts for the hardware logic of the LED power driver:
+// Some driver FETs have a gate and enable/disable logic. 
+// We use common PWM on all gates and enable each channel with an enable signal. 
+// Some FETs use inverted logic on enable/disable or on the gate.
 #define TURN_ON  HIGH           // Adjust if you have inverted logic for ON/OFF
 #define TURN_OFF LOW            // 
 #define PWM_INV  true           // If true, high on PWM pin represents OFF
-#define INTERRUPTTRIGGER RISING // Can be RISING or FALLING
-
 // You can advance to the next LED right after exposure is completed or within first few miroseconds
-// after camera starts measuring. 
-// Ideal is after current exposure which with inverted FRAME_EXPOSURE signal would be 
-// the rising edge of the trigger signal
+// after camera starts exposing. 
+// Ideal is to advance after current exposure.
+// With an inverted FRAME_EXPOSURE signal that would be the rising edge of the 
+// trigger signal
+#define INTERRUPTTRIGGER RISING // Can be RISING or FALLING
 
 // ------------------------------------------------------------------------
 // LED channel configuration
@@ -130,6 +133,7 @@ volatile int            LEDs[NUM_CHANNELS] = {CH1,  CH2,  CH3,  CH4,  CH5,  CH6,
 volatile bool     LEDsEnable[NUM_CHANNELS] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
 float              LEDsInten[NUM_CHANNELS] = {5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,     5.,     5.,     5.,     5.};     // PWM in %
 volatile int      LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,    12,    12,    12,    12,    12,     12,     12,     12,     12};     // PWM in raw numbers, max depends on PWM resolution
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // You should not need to change values below                                                   //
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,16 +189,16 @@ bool ledStatus = false;                  // Built-in Led should be off at start 
 // ------------------------------------------------------------------------
 // Main System and PWM working variables
 // ------------------------------------------------------------------------
-int           Pin            = CH1;           //
-volatile int  PWM_Pin        = PWM;           //
-bool          PWM_Enabled    = false;         //
-long          CPU_Frequency  = F_CPU / 1E6;   //
-float         PWM_Frequency  = 4577.64;       // Ideal 15 bit and 600MHz Teensy 4.0
-unsigned int  PWM_Resolution = 8;             // 
-unsigned int  PWM_MaxValue   = pow(2, PWM_Resolution)-1;
-float         DutyCycle      = 5.0;           //
-int           CameraTrigger  = CAMTRG;        //
-int           PowerSwitch    = POWERSWITCH;   //
+int           Pin            = CH1;           // The pin we manually change, change at runtime
+volatile int  PWM_Pin        = PWM;           // The pin we use for the FET Gate, change at runtime
+bool          PWM_Enabled    = false;         // Turn on/off PWM, change at runtime
+long          CPU_Frequency  = F_CPU / 1E6;   // Set at run time, depends on Teensy.
+float         PWM_Frequency  = 4577.64;       // Ideal 15 bit and 600MHz Teensy 4.0, change at runtime
+unsigned int  PWM_Resolution = 8;             // The current resolution, change at runtime.
+unsigned int  PWM_MaxValue   = pow(2, PWM_Resolution)-1; // Computed internally
+float         DutyCycle      = 5.0;           // The current dutycyle, change at runtime
+int           CameraTrigger  = CAMTRG;        // The current input trigger, change at runtime
+int           PowerSwitch    = POWERSWITCH;   // The current on/off switch, change at runtime
 
 // ------------------------------------------------------------------------
 // Serial
@@ -209,7 +213,7 @@ int    bytesread;
 // *********************************************************************************************//
 void setup(){
 
-  //EEPROM
+  // EEPROM
   EEPROM.get(eepromAddress, mySettings);
   if (mySettings.valid == EEPROM_VALID) { // apply settings because EEPROM has valid settings
     CameraTrigger  = mySettings.CameraTrigger;
@@ -268,6 +272,7 @@ void setup(){
   }
 
   // Interrupts
+  //
   // Frame Trigger, required
   attachInterrupt(digitalPinToInterrupt(CameraTrigger), frameISR, INTERRUPTTRIGGER); // Frame start
   // Power Button, if button is not an existing pin, dont enable this, e.g. pin=-1
@@ -305,7 +310,7 @@ void loop(){
     lastInAvail = currentTime;
   }
   
-  // Blink LED
+  // Blink built in LED for status report
   //////////////////////////////////////////////////////////////////
   if ( frameTriggerOccurred > 0 ) { // blink
     ledStatus = !ledStatus;
@@ -331,9 +336,10 @@ void loop(){
     }
   }
 
-  // If autoadvance enabled
-  // and if no frame trigger detected for 5 seconds
-  // turn off all LEDs
+  // Auto Turn OFF 
+  //////////////////////////////////////////////////////////////////
+  // If autoadvance enabled and if no frame trigger detected 
+  // for 5 seconds turn off all LEDs
   if ( AutoAdvance && (Stopped==false) ) {
     if ( (currentTime -lastFrameTrigger) > 5000000 ) {
       for (int i=0; i<NUM_CHANNELS; i++) {
@@ -370,11 +376,11 @@ void loop(){
 //////////////////////////////////////////////////////////////////
 void frameISR() {
   if ( AutoAdvance ) {
-    unsigned long triggerTime = micros();
-    if ( (triggerTime - lastTriggerTime) > DEBOUNCEBLOCK ) { // debounce
-      // Turn OFF previous LED, skip the background channel
+    unsigned long triggerTime = micros(); // Teensy provides timing information in ISR
+    if ( (triggerTime - lastTriggerTime) > DEBOUNCEBLOCK ) { // Debounce
+      // 1) Turn OFF previous LED, skip the background channel
       if (LEDs[chCurrent] != BACKGND) { digitalWriteFast(LEDs[chCurrent], TURN_OFF); } 
-      // Increment channel
+      // 2) Increment channel
       chCurrent += 1; 
       if ( chCurrent >= NUM_CHANNELS ) {chCurrent = 0;}
       // Continue incrementing if channel is disabled
@@ -382,7 +388,7 @@ void frameISR() {
         chCurrent += 1; 
         if ( chCurrent >= NUM_CHANNELS ) { chCurrent = 0; }
       }
-      // Turn ON next LED, skip background channel
+      // T3) urn ON next LED, skip background channel
       if ( LEDs[chCurrent] != BACKGND ) { 
         analogWrite(PWM_Pin, LEDsIntenI[chCurrent]); // set intensity 
         digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
@@ -418,8 +424,9 @@ void onOff() {
 // Support Functions                                                                            //
 // *********************************************************************************************//
 
-// Teensy 4.0 realtion between PWM frequency and PWM resolution
-//////////////////////////////////////////////////////////////////
+// Teensy 4.0 relation between PWM frequency and PWM resolution
+///////////////////////////////////////////////////////////////
+//https://www.pjrc.com/teensy/td_pulse.html
 float GetMaxPWMFreqValue(long FREQ, unsigned int PWM_Resolution)
 {
   /* for Teensy CPU frequencies are
@@ -451,7 +458,7 @@ float GetMaxPWMFreqValue(long FREQ, unsigned int PWM_Resolution)
 } // end of getMaxPWMFreqValue
 
 // Setup PWM modulation on a pin
-// This is slow and should only be used for setup and not to change dutycyle
+// This might be slow and should only be used for setup and not to change dutycyle
 //////////////////////////////////////////////////////////////////
 void setupPWM(int PWM_Pin, float PWM_Freq, float Duty, unsigned int PWM_Resolution) {
   if (isPWM(PWM_Pin)) {
@@ -535,6 +542,7 @@ void printHelp() {
   Serial.println("-------------------------------------------------");
 }
 
+// What are we working on right now?
 void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.println("BlackFly Camera to LED Illumination Sync Status");
@@ -556,6 +564,7 @@ void printSystemInformation() {
   printChannels();
 }
 
+// What are the settings for all channels?
 void printChannels() {
   Serial.println("-------------------------------------------------");
   for (int i=0; i<NUM_CHANNELS; i++) {
@@ -566,6 +575,7 @@ void printChannels() {
   }
 }
 
+// What can we choose from?
 void printPinInformation() {
   Serial.println("-------------------------------------------------");
   Serial.println("Maximum Values:");
@@ -573,6 +583,7 @@ void printPinInformation() {
   listPins();
 }
 
+// What are the max frequencies for each resolution?
 void listFrequencies()
 {
   Serial.println("-------------------------------------------------");
@@ -584,6 +595,7 @@ void listFrequencies()
 } 
 
 boolean isPWM(int mypin) {
+  //https://www.pjrc.com/teensy/td_pulse.html
   const int last = 31; // number of pins -1
   const int pwmpins[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,18,19,\
                          22,23,24,25,28,29,33,34,35,36,37,38,39};
