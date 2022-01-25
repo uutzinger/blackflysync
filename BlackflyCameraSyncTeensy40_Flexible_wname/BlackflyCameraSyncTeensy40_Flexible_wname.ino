@@ -526,7 +526,7 @@ void printHelp() {
   Serial.println("       (all channels except current working channel");
   Serial.println("        will be turned off)"); 
   Serial.println("m2/M2  disable/enable channel 2"); 
-  Serial.println("t2UNKN enter UNKN as name for channel 2");
+  Serial.println("t2     enter name for channel 2");
   Serial.println("f512   set frequency to 512Hz");
   Serial.println("r8     set PWM resolution to 8 bits");
   Serial.println("-------------------------------------------------");
@@ -575,7 +575,7 @@ void printSystemInformation() {
 void printChannels() {
   Serial.println("-------------------------------------------------");
   for (int i=0; i<NUM_CHANNELS; i++) {
-    Serial.printf( "Name: %s\r\n",  LEDsName[i]); 
+    Serial.printf( "Name: %s",  LEDsName[i]); 
     Serial.printf( " Channel: %2d pin: %2d", i, LEDs[i]);
     Serial.printf( " Enabled: %s", LEDsEnable[i]?"Yes":" No"); 
     Serial.printf( " Duty: %6.2f",  LEDsInten[i]); 
@@ -820,10 +820,10 @@ void processInstruction(String instruction) {
   } else if ( command == 't' ) {
     // Set Channel Name ///////////////////////////////////////////////////////////
     tempInt = value.toInt();      
-    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // cehck boundaries      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // check boundaries      
       // Obtain new name
-      Serial.printf("Enter new Name for Channel %d (up to 4 characters)\r\n",  tempInt);
       while( Serial.available() > 0) { char t = Serial.read(); } // clear input buffer
+      Serial.printf("Enter new Name for Channel %d (up to 4 characters)\r\n",  tempInt);
       Serial.setTimeout(20000); // give up to 20secs
       bytesread = Serial.readBytesUntil('\n', inBuff, 4);  // Read from serial until CR is read or timeout exceeded
       inBuff[bytesread] = '\0';
