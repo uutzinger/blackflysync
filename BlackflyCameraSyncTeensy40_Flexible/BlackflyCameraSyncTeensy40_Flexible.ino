@@ -296,13 +296,13 @@ void loop(){
   
   // Time Keeper
   //////////////////////////////////////////////////////////////////
-  currentTime = micros();                                         // whats the time
+  currentTime = micros(); // whats the time
  
   // Input Commands
   //////////////////////////////////////////////////////////////////
   if ((currentTime - lastInAvail) >= CHECKINPUT_INTERVAL) {
     if ( Serial.available() ) {
-      bytesread = Serial.readBytesUntil('\n', inBuff, 16);      // Read from serial until CR is read or timeout exceeded
+      bytesread = Serial.readBytesUntil('\n', inBuff, 16); // Read from serial until CR is read or timeout exceeded
       inBuff[bytesread] = '\0';
       String instruction = String(inBuff);
       processInstruction(instruction);
@@ -516,13 +516,14 @@ void printHelp() {
   Serial.println("6 Save channel configurations to EEPROM: E");
   Serial.println("-------------------------------------------------");
   Serial.println("------- Data Input ------------------------------");
-  Serial.println("p5   set current working pin to 5");
-  Serial.println("d50  set duty cyle to 50%");
-  Serial.println("m/M  disable/enable current working channel"); 
-  Serial.println("     (all channels except current working channel");
-  Serial.println("      will be turned off)"); 
-  Serial.println("f512 set frequency to 512Hz");
-  Serial.println("r8   set PWM resolution to 8 bits");
+  Serial.println("p5    set current working pin to 5");
+  Serial.println("d50   set duty cyle to 50%");
+  Serial.println("m/M   disable/enable current working channel"); 
+  Serial.println("      (all channels except current working channel");
+  Serial.println("       will be turned off)");
+  Serial.println("m2/M2 disable/enable channel 2");    
+  Serial.println("f512  set frequency to 512Hz");
+  Serial.println("r8    set PWM resolution to 8 bits");
   Serial.println("-------------------------------------------------");
   Serial.println("i/I  system information");
   Serial.println("x    print channel settings");
@@ -560,19 +561,21 @@ void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.printf( "State is:             %s\r\n",        AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
-  Serial.printf( "Working on pin: %2d. Working channel is %d which is set to %s.\n", \
-                  Pin, chWorking, PWM_Enabled?"enabled":"disabled");
+  Serial.printf( "Working on:\r\nChannel: %2d pin: %2d %s\r\n", \
+                  chWorking, Pin, PWM_Enabled?"On ":"Off");
   printChannels();
 }
 
 // What are the settings for all channels?
 void printChannels() {
   Serial.println("-------------------------------------------------");
+  Serial.println("Auto Advance Sequence");
+  Serial.println("-------------------------------------------------");
   for (int i=0; i<NUM_CHANNELS; i++) {
     Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
-    Serial.printf( " Enabled: %s", LEDsEnable[i]?"Yes":" No"); 
-    Serial.printf( " Duty: %6.2f",  LEDsInten[i]); 
-    Serial.printf( " Duty Raw: %d\r\n",  LEDsIntenI[i]); 
+    Serial.printf( " %s", LEDsEnable[i]?"On ":"Off"); 
+    Serial.printf( " %6.2f%% duty",  LEDsInten[i]); 
+    Serial.printf( " Raw: %d\r\n",  LEDsIntenI[i]); 
   }
 }
 
@@ -747,11 +750,12 @@ void processInstruction(String instruction) {
         tempInt = value.toInt();
         if (isIO(tempInt)) {
           LEDsEnable[tempInt]  = false;
+          Serial.printf("Channel %d, is off\r\n", tempInt);
         }
-    } else {                      // adjust only current working channle/pin
+    } else {                      // adjust current working channel/pin
       if (isIO(Pin)) {
-        digitalWrite(Pin,  TURN_OFF);
-        Serial.printf("Pin %d is off\r\n", Pin);
+        for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWrite(LEDs[i],TURN_OFF); } // turn off all channels, can not have two LEDs on at same time
+        Serial.printf("All channels are off\r\n");
       } else {
         Serial.printf("Enable flag set to off. No changes to hardware as pin %d is not a DIO pin.\r\n", Pin);
       }
@@ -763,12 +767,13 @@ void processInstruction(String instruction) {
         tempInt = value.toInt();
         if (isIO(tempInt)) {
           LEDsEnable[tempInt]  = true;
+          Serial.printf("Channel %d, is on\r\n", tempInt);
         }
     } else {                     // adjust only current working channle/pin
       if (isIO(Pin)) {
         for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWriteFast(LEDs[i],TURN_OFF); } // turn off all channels, can not have two LEDs on at same time
-        digitalWrite(Pin,  TURN_ON);
-        Serial.printf("Pin %d is on\n", Pin);
+        digitalWrite(Pin,  TURN_ON); // turn on the specified channel
+        Serial.printf("Channel %d, Pin %d is on\r\n", chWorking, Pin);
       } else {
         Serial.printf("Enable flag set to on. No changes to hardware as pin %d is not a DIO pin.\r\n", Pin);
       }
