@@ -133,7 +133,7 @@ volatile int            LEDs[NUM_CHANNELS] = {CH1,  CH2,  CH3,  CH4,  CH5,  CH6,
 volatile bool     LEDsEnable[NUM_CHANNELS] = {false, false, false, false, false, false, false, false, false, false, false, false, false, false};  // Is channel on or off=false
 float              LEDsInten[NUM_CHANNELS] = {5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.};     // PWM in %
 volatile int      LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,    12,    12,    12,    12,    12,    12,    12,    12,    12};     // PWM in raw numbers, max depends on PWM resolution
-char*               LEDsName[NUM_CHANNELS] = {"365 ","460 ","525 ","590 ","623 ","660 ","740 ","850 ","950 ","1050","WHIT","280 ","420 ","BGND"};
+char*               LEDsName[NUM_CHANNELS] = {"365  ","460  ","525  ","590  ","623  ","660  ","740  ","850  ","950  ","1050 ","WHITE","280  ","420  ","BGND "};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // You should not need to change values below                                                   //
@@ -246,7 +246,7 @@ void setup(){
       LEDsEnable[i] = false; 
       LEDsInten[i]  = 5.;
       LEDsIntenI[i] = (int) (LEDsInten[i]  / 100. * float(PWM_MaxValue));
-      strcpy(LEDsName[i], "UNKN");
+      strcpy(LEDsName[i], "UNKN ");
     }
     AutoAdvance     = false;
   }
@@ -823,9 +823,9 @@ void processInstruction(String instruction) {
     if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // check boundaries      
       // Obtain new name
       while( Serial.available() > 0) { char t = Serial.read(); } // clear input buffer
-      Serial.printf("Enter new Name for Channel %d (up to 4 characters)\r\n",  tempInt);
+      Serial.printf("Enter new Name for Channel %d (up to 5 characters)\r\n",  tempInt);
       Serial.setTimeout(20000); // give up to 20secs
-      bytesread = Serial.readBytesUntil('\n', inBuff, 4);  // Read from serial until CR is read or timeout exceeded
+      bytesread = Serial.readBytesUntil('\n', inBuff, 5);  // Read from serial until CR is read or timeout exceeded
       inBuff[bytesread] = '\0';
       if (strlen(inBuff) > 0) {
         strcpy(LEDsName[tempInt],inBuff);
