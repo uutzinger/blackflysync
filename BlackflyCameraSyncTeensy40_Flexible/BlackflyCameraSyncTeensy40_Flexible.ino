@@ -48,7 +48,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.5.0"
+#define VERSION "1.6.0"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -133,6 +133,7 @@ volatile int            LEDs[NUM_CHANNELS] = {CH1,  CH2,  CH3,  CH4,  CH5,  CH6,
 volatile bool     LEDsEnable[NUM_CHANNELS] = {false, false, false, false, false, false, false, false, false, false,  false,  false,  false,  false};  // Is channel on or off=false
 float              LEDsInten[NUM_CHANNELS] = {5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,    5.,     5.,     5.,     5.,     5.};     // PWM in %
 volatile int      LEDsIntenI[NUM_CHANNELS] = {12,    12,    12,    12,    12,    12,    12,    12,    12,    12,     12,     12,     12,     12};     // PWM in raw numbers, max depends on PWM resolution
+char             LEDsName[NUM_CHANNELS][6] = {"365  ","460  ","525  ","590  ","623  ","660  ","740  ","850  ","950  ","1050 ","WHITE","280  ","420  ","BGND "};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // You should not need to change values below                                                   //
@@ -164,6 +165,7 @@ struct EEPROMsettings {                  // Setting structure
   int          PowerSwitch;              // Input pin for on/off optional
   int          PWM_Pin;                  // Output pin for PWM signal
   bool         AutoAdvance;              // Frame trigger turns on next LED
+  char         LEDsName[NUM_CHANNELS][6];
   };
 
 EEPROMsettings mySettings; // the settings
@@ -229,6 +231,8 @@ void setup(){
       LEDsInten[i]  = mySettings.LEDsInten[i];
       if (PWM_INV) { LEDsIntenI[i] = int(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
       else         { LEDsIntenI[i] = int(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
+      if (strlen(mySettings.LEDsName[i]) < 6) { strcpy(LEDsName[i], mySettings.LEDsName[i]); }
+      else { strcpy(LEDsName[i],"UNKN"); }
     }
     AutoAdvance     = mySettings.AutoAdvance;
   } else {
@@ -243,6 +247,7 @@ void setup(){
       LEDsEnable[i] = false; 
       LEDsInten[i]  = 5.;
       LEDsIntenI[i] = (int) (LEDsInten[i]  / 100. * float(PWM_MaxValue));
+      strcpy(LEDsName[i], "UNKN");
     }
     AutoAdvance     = false;
   }
@@ -270,6 +275,7 @@ void setup(){
     Serial.println("Starting System");
     printHelp();
   }
+  Serial.setTimeout(20000); // give up to 20secs to complete serial input
 
   // Interrupts
   //
@@ -303,6 +309,7 @@ void loop(){
   if ((currentTime - lastInAvail) >= CHECKINPUT_INTERVAL) {
     if ( Serial.available() ) {
       bytesread = Serial.readBytesUntil('\n', inBuff, 16); // Read from serial until CR is read or timeout exceeded
+      while( Serial.available() > 0) { Serial.read(); } // clear input buffer
       inBuff[bytesread] = '\0';
       String instruction = String(inBuff);
       processInstruction(instruction);
@@ -497,11 +504,9 @@ void setupPWM(int PWM_Pin, float PWM_Freq, float Duty, unsigned int PWM_Resoluti
 void printHelp() {
   Serial.println("-------------------------------------------------");
   Serial.println("BlackFly Camera to LED Illumination Sync Help");
-  Serial.println("-------------------------------------------------");
   Serial.println("https://github.com/uutzinger/blackflysync  ");
   Serial.println("-------------------------------------------------");
   Serial.println("Work Flow:");
-  Serial.println("-------------------------------------------------");
   Serial.println("0 Disable Auto Advance: a");
   Serial.println("  f: set the PWM frequency");
   Serial.println("  d: set the duty cycle");
@@ -520,22 +525,23 @@ void printHelp() {
   Serial.println("d50   set duty cyle to 50%");
   Serial.println("m/M   disable/enable current working channel"); 
   Serial.println("      (all channels except current working channel");
-  Serial.println("       will be turned off)");
-  Serial.println("m2/M2 disable/enable channel 2");    
+  Serial.println("       will be turned off)"); 
+  Serial.println("m2/M2 disable/enable channel 2"); 
+  Serial.println("t2    enter name for channel 2");
   Serial.println("f512  set frequency to 512Hz");
   Serial.println("r8    set PWM resolution to 8 bits");
-  Serial.println("-------------------------------------------------");
+  Serial.println("------- Information -----------------------------");
   Serial.println("i/I  system information");
   Serial.println("x    print channel settings");
-  Serial.println("-------------------------------------------------");
+  Serial.println("------- Load 7 Save -----------------------------");
   Serial.println("s0   load channel 0 to current working settings");
   Serial.println("S0   save channel 0 from current working settings");
   Serial.println("save to EEPROM to make presistant");
-  Serial.println("-------------------------------------------------");
+  Serial.println("------- Pins ------------------------------------");
   Serial.println("c21  set camera trigger to pin 21");
   Serial.println("C22  set PWM clock to pin 22");
   Serial.println("o20  set on/off button to pin 20, -1 = disabled");
-  Serial.println("-------------------------------------------------");
+  Serial.println("------- Utils -----------------------------------");
   Serial.println("a/A  disable/enable Auto Advance"); 
   Serial.println("e/E  read/save settings to EEPROM");
   Serial.println("Z    turn off all channels");
@@ -547,7 +553,7 @@ void printHelp() {
 // What are we working on right now?
 void printSystemInformation() {
   Serial.println("-------------------------------------------------");
-  Serial.println("BlackFly Camera to LED Illumination Sync Status");
+  Serial.println("System Status");
   Serial.println("-------------------------------------------------");
   Serial.printf( "Software version:     %s\r\n",        VERSION);
   Serial.printf( "CPU:                  %2d MHz\r\n",   CPU_Frequency);
@@ -561,12 +567,11 @@ void printSystemInformation() {
   Serial.println("-------------------------------------------------");
   Serial.printf( "State is:             %s\r\n",        AutoAdvance?"Auto":"Manual");
   Serial.println("-------------------------------------------------");
-  Serial.printf( "Working on:\r\nChannel: %2d pin: %2d %s\r\n", \
-                  chWorking, Pin, PWM_Enabled?"On ":"Off");
+  Serial.printf( "Working on LED %s:\r\nChannel: %2d pin: %2d %s\r\n", \
+                  LEDsName[chWorking], chWorking, Pin, PWM_Enabled?"On ":"Off" );
   printChannels();
 }
 
-// What are the settings for all channels?
 void printChannels() {
   Serial.println("-------------------------------------------------");
   Serial.println("Auto Advance Sequence");
@@ -575,7 +580,8 @@ void printChannels() {
     Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
     Serial.printf( " %s", LEDsEnable[i]?"On ":"Off"); 
     Serial.printf( " %6.2f%% duty",  LEDsInten[i]); 
-    Serial.printf( " Raw: %d\r\n",  LEDsIntenI[i]); 
+    Serial.printf( " Raw: %4d",  LEDsIntenI[i]); 
+    Serial.printf( " Name: %5s\r\n",  LEDsName[i]); 
   }
 }
 
@@ -590,7 +596,6 @@ void printPinInformation() {
 // What are the max frequencies for each resolution?
 void listFrequencies()
 {
-  Serial.println("-------------------------------------------------");
   for(int i=2; i<=15; i++) {
     Serial.printf("Resolution: %2d bit, Frequency: %11.2f\r\n", \
                    i, GetMaxPWMFreqValue(CPU_Frequency, (unsigned int) i));
@@ -616,8 +621,8 @@ boolean isIO(int mypin) {
 
 void listPins() {
   char pinType[] = "Hard";
-  Serial.println("Available Pins for PWM");
   Serial.println("-------------------------------------------------");
+  Serial.println("Available Pins for PWM and DIO:");
   for (int i=0; i<40; i++){
     if      ( isPWM(i) )     {strcpy(pinType, "PWM");}
     else if ( isIO(i) )      {strcpy(pinType, "DIO");}
@@ -631,14 +636,15 @@ void listPins() {
 
 void processInstruction(String instruction) {
   String value    = "0.01";
-  String command  = "o";
+  String command  = "?";
   float  tempFloat;
   int tempInt;
   int instructionLength = instruction.length();
   if ( instructionLength > 0 ) { command = instruction.substring(0,1); } 
   if ( instructionLength > 1 ) {   value = instruction.substring(1); }
+
   //mySerial.println(command);
-  //mySerial.println(value);
+  //mySerial.println(value);        
 
   if        ( command == 'a' ) { // manual mode
     // ENABLE/DISABLE Autodavance based on Frame Trigger////////////////////////////
@@ -712,6 +718,7 @@ void processInstruction(String instruction) {
         LEDs[i]      = mySettings.LEDs[i];      
         LEDsEnable[i]= mySettings.LEDsEnable[i];
         LEDsInten[i] = mySettings.LEDsInten[i];
+        strcpy(LEDsName[i], mySettings.LEDsName[i]);
         if (PWM_INV) { LEDsIntenI[i] = int(( 100.0 - LEDsInten[i]) / 100. * float(PWM_MaxValue) ); }
         else         { LEDsIntenI[i] = int(          LEDsInten[i]  / 100. * float(PWM_MaxValue) ); }
       }
@@ -739,6 +746,7 @@ void processInstruction(String instruction) {
       mySettings.LEDs[i]       = LEDs[i];      
       mySettings.LEDsEnable[i] = LEDsEnable[i];
       mySettings.LEDsInten[i]  = LEDsInten[i];
+      strcpy(mySettings.LEDsName[i], LEDsName[i]);
     }
     mySettings.AutoAdvance     = AutoAdvance;
     EEPROM.put(eepromAddress, mySettings);
@@ -814,6 +822,24 @@ void processInstruction(String instruction) {
         AutoAdvance            = tempAutoAdvance; // restore autoadvance state
       } else { Serial.printf("Channel %d out of valid Range.\r\n",chWorking);}
       
+  } else if ( command == 't' ) {
+    // Set Channel Name ///////////////////////////////////////////////////////////
+    tempInt = value.toInt();      
+    if ((tempInt >=0) && (tempInt < NUM_CHANNELS)) { // check boundaries      
+      // Obtain new name
+      while( Serial.available() > 0) { Serial.read(); } // clear input buffer
+      Serial.printf("Enter new Name for Channel %d (up to 5 characters)\r\n",  tempInt);
+      bytesread = Serial.readBytesUntil('\n', inBuff, 6);  // Read from serial until CR is read or timeout exceeded
+      while( Serial.available() > 0) { Serial.read(); } // clear input buffer
+      inBuff[bytesread] = '\0';
+      if (strlen(inBuff) > 0) {
+        strcpy(LEDsName[tempInt],inBuff);
+        Serial.printf("Channel %d Name: %s\r\n", tempInt, LEDsName[tempInt] );
+      } else {
+        Serial.println("Name too short.");
+      }
+    } else { Serial.println("Channel out of valid Range.");   }
+
   } else if ( command == 'd' ) { // duty cycle
     // SET DUTY CYCLE /////////////////////////////////////////////////////////////
     tempFloat = value.toFloat();
