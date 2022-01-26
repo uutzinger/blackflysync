@@ -556,7 +556,7 @@ void printSystemInformation() {
   Serial.println("System Status");
   Serial.println("-------------------------------------------------");
   Serial.printf( "Software version:     %s\r\n",        VERSION);
-  Serial.printf( "CPU:                  %2d MHz\r\n",   CPU_Frequency);
+  Serial.printf( "CPU:                  %d MHz\r\n",    CPU_Frequency);
   Serial.printf( "PWM pin:              %d\r\n",        PWM_Pin);
   Serial.printf( "Frequency:            %.2f Hz\r\n",   PWM_Frequency);
   Serial.printf( "Current Duty:         %.2f [%%]\r\n", DutyCycle);
@@ -574,13 +574,12 @@ void printSystemInformation() {
 
 void printChannels() {
   Serial.println("-------------------------------------------------");
-  Serial.println("Auto Advance Sequence");
-  Serial.println("-------------------------------------------------");
+  Serial.println("Auto Advance Sequence:");
   for (int i=0; i<NUM_CHANNELS; i++) {
     Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
     Serial.printf( " %s", LEDsEnable[i]?"On ":"Off"); 
-    Serial.printf( " %6.2f%% duty",  LEDsInten[i]); 
-    Serial.printf( " Raw: %4d",  LEDsIntenI[i]); 
+    Serial.printf( " %6.2f[%%] duty",  LEDsInten[i]); 
+    Serial.printf( " [%4d]",  LEDsIntenI[i]); 
     Serial.printf( " Name: %5s\r\n",  LEDsName[i]); 
   }
 }
