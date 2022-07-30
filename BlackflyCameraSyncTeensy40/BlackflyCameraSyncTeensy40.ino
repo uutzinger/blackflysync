@@ -4,7 +4,7 @@
 //
 // Description
 // -----------
-// This program controls an LED light source. It uses the camera frame sync to advance the active
+// This program controls a custom LED light source. It uses the camera frame sync to advance the active
 // LED in a sequence of LED lights. It uses PWM to adjust the LED intensity. 
 // It is designed to work at high frame rates at the limits of the microcontroller.
 //
@@ -12,6 +12,7 @@
 // ------------
 // - Teensy 4.x Microcontroller.
 // - Camera with digital frame sync.
+// - Custom LED driver (power FET & FET driver)
 //
 // Setup
 // -----
