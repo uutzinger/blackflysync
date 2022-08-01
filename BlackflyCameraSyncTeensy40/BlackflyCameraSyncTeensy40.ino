@@ -563,10 +563,10 @@ void printChannels() {
 
 void printChannel(int i) {
   Serial.printf( "Channel: %2d pin: %2d", i, LEDs[i]);
-  Serial.printf( " %s", LEDsEnable[i]?"On ":"Off"); 
-  Serial.printf( " %6.2f[%%] duty",  LEDsInten[i]); 
-  Serial.printf( " [%4d]",  LEDsIntenI[i]); 
-  Serial.printf( " Name: %5s\r\n",  LEDsName[i]); 
+  Serial.printf( " %s",                      LEDsEnable[i]?"On ":"Off"); 
+  Serial.printf( " %6.2f[%%] duty",          LEDsInten[i]); 
+  Serial.printf( " [%4d]",                   LEDsIntenI[i]); 
+  Serial.printf( " Name: %s\r\n",            LEDsName[i]); 
 }
 
 // What can we choose from?
