@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.8.3"
+#define VERSION "1.9.1"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -195,7 +195,7 @@ bool Stopped = false;                         //
 bool ledStatus = false;                       // Built-in Led should be off at start up
 
 // ------------------------------------------------------------------------
-// Main System and PWM working variables
+// Main working variables
 // ------------------------------------------------------------------------
 int           Pin            = CH1;           // The pin we manually change, we can change at runtime
 volatile int  PWM_Pin        = PWM;           // The pin we use for the FET Gate, we can change at runtime
@@ -211,10 +211,9 @@ int           PowerSwitch    = POWERSWITCH;   // The current on/off switch, we c
 // ------------------------------------------------------------------------
 // Serial
 #define SERIAL_PORT_SPEED    2000000          // Serial Baud Rate, teensy ignores baudrate and uses max speed
-char   inBuff[] = "----------------";         // needs to match maximum length of a command
+char   inBuff[] = "------------------------"; // needs to match maximum length of a command
 int    bytesread;
 unsigned long laserSerialInputTimeout;        // last time we received serial input command
-#define SERIALMAXRATE 500                     // ms beteween serial input commands
 
 // *********************************************************************************************//
 // *********************************************************************************************//
@@ -261,8 +260,10 @@ void setup(){
   // House keeping
   lastInAvail = lastInterrupt = nextLEDCheck = micros();
   // Display system information and help
-  printSystemInformation();
-  printHelp();
+  if (SERIAL_REPORTING) {
+    printSystemInformation();
+    printHelp();
+  }
 
 } // end setup
 
@@ -321,7 +322,7 @@ void loop(){
   // If autoadvance enabled and if no frame trigger detected 
   // for 5 seconds turn off all LEDs
   if ( AutoAdvance && (Stopped==false) ) {
-    if ( (loopStartTime - lastFrameTrigger) > 5000000 ) {      // 5 seconds frametrigger timeout
+    if ( (loopStartTime - lastFrameTrigger) > 5000000 ) {           // 5 seconds frametrigger timeout
       for (int i=0; i<NUM_CHANNELS; i++) {
         if ( (LEDsEnable[i]==true) && isIO(LEDs[i]) ) { digitalWrite(LEDs[i],TURN_OFF); }     
       }
@@ -376,7 +377,7 @@ void frameISR() {
       }
       // 3) Turn ON next LED, skip background channel
       if ( LEDs[chCurrent] != BACKGND ) { 
-        analogWrite(PWM_Pin, LEDsIntenI[chCurrent]); // set intensity on clock 
+        analogWrite(PWM_Pin, LEDsIntenI[chCurrent]); // set intensity with pwm pin 
         digitalWrite(LEDs[chCurrent], TURN_ON); // turn on enable pin
       }
       frameTriggerOccurred += 1;  // signal to main loop
@@ -621,34 +622,35 @@ void listPins() {
 void processInstruction() {
   float  tmpF;
   int    tmpI;
-  char   command[2];
+  char   instruction[2];
   char   value[64];
   char   *pEnd;
+  bool   tempAutoAdvance;
 
   pEnd = strchr (inBuff, '\r');       // search for carriage return
   if (pEnd) { *pEnd = '\0'; }         // if found truncate
 
   if (strlen(inBuff) > 0) {           // process input if input buffer is not empty
-    strncpy(command, inBuff, 1); command[1]='\0';  // no null char appended when using strncpy
+    strncpy(instruction, inBuff, 1); instruction[1]='\0';  // no null char appended when using strncpy
     if (strlen(inBuff) > 1) { 
       strncpy(value, inBuff+1, sizeof(value));
     } else {
       value[0] = '\0'; 
     }
 
-    //Serial.print("Command: "); Serial.println(command);
+    //Serial.print("Instruction: "); Serial.println(instruction);
     //Serial.print("Value:   "); Serial.println(value);        
 
-    if        ( command[0] == 'a' ) { // manual mode
+    if        ( instruction[0] == 'a' ) { // manual mode
       // ENABLE/DISABLE Autodavance based on Frame Trigger////////////////////////////
       AutoAdvance = false;    
       Serial.println("Mode: Manual.");
 
-    } else if ( command[0] == 'A' ) { // auto advance
+    } else if ( instruction[0] == 'A' ) { // auto advance
       AutoAdvance = true;
       Serial.println("Mode: Auto Advance.");
       
-    } else if ( command[0] == 'c' ) { // canera trigger pin
+    } else if ( instruction[0] == 'c' ) { // canera trigger pin
       // Camera Trigger /////////////////////////////////////////////////////////////
       if (strlen(value)>0) {
         tmpI = int(strtol(value, NULL, 10));
@@ -663,7 +665,7 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'C' ) { // pwm clock pin
+    } else if ( instruction[0] == 'C' ) { // pwm clock pin
       // PWM Clock /////////////////////////////////////////////////////////////
       if (strlen(value)>0) {
         tmpI = int(strtol(value, NULL, 10));
@@ -678,7 +680,7 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'o' ) { // power button
+    } else if ( instruction[0] == 'o' ) { // power button
       // Power Button /////////////////////////////////////////////////////////////
       if (strlen(value)>0) { 
         tmpI = int(strtol(value, NULL, 10));
@@ -695,7 +697,7 @@ void processInstruction() {
         }
       }
     
-    } else if ( command[0] == 'x' ) { // channel settings
+    } else if ( instruction[0] == 'x' ) { // channel settings
       if (strlen(value)>0) { 
         tmpI = int(strtol(value, NULL, 10));
         if ((tmpI >=0) || (tmpI < NUM_CHANNELS)) { // check boundaries
@@ -705,52 +707,47 @@ void processInstruction() {
         printChannels();
       }
 
-    } else if ( command[0] == 'i' ) { // system information
+    } else if ( instruction[0] == 'i' ) { // system information
       printSystemInformation();
 
-    } else if ( command[0] == 'I' ) { // system information
+    } else if ( instruction[0] == 'I' ) { // system information
       printPinInformation();
 
-    } else if ( command[0] == 'e' ) { // read EEPROM
+    } else if ( instruction[0] == 'e' ) { // read EEPROM
       if (loadSettings()) { 
         Serial.println("EEPROM read.");
       } else { 
         Serial.println("EEPROM settings not valid, not applied."); 
       }
 
-    } else if ( command[0] == 'E' ) { // saveEEPROM
+    } else if ( instruction[0] == 'E' ) { // saveEEPROM
       saveSettings();
       Serial.println("Settings saved to EEPROM.");
 
-    } else if ( command[0] == 'm' ) { // turn off
+    } else if ( instruction[0] == 'm' ) { // turn off
       // ENABLE/DISABLE  //////////////////////////////////////////////////////////
       if (strlen(value)>0) {
         tmpI = int(strtol(value, NULL, 10));
-        if (isIO(tmpI)) {
-          LEDsEnable[tmpI]  = false;
-          Serial.printf("Channel %d, is off.\r\n", tmpI);
-        }
+        LEDsEnable[tmpI]  = false;
+        Serial.printf("Channel %d, is off.\r\n", tmpI);
       } else {                        // adjust only current working channle/pin
         if (isIO(Pin)) {
-          for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWrite(LEDs[i],TURN_OFF); } // turn off all channels, can not have two LEDs on at same time
-          Serial.printf("All channels are off.\r\n");
+          digitalWrite(Pin, TURN_OFF); // turn off current working channel
+          Serial.printf("Channel %d, is off.\r\n", chWorking);
         } else {
           Serial.printf("Enable flag set to off. No changes to hardware as pin %d is not a DIO pin.\r\n", Pin);
         }
         PWM_Enabled = false;
       }
 
-    } else if ( command[0] == 'M' ) { // turn on
+    } else if ( instruction[0] == 'M' ) { // turn on
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
-          if (isIO(tmpI)) {
-            LEDsEnable[tmpI] = true;
-            Serial.printf("Channel %d, is on.\r\n", tmpI);
-
-          }
-      } else {                        // adjust only current working channle/pin
-        if (isIO(Pin)) {
-          for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWriteFast(LEDs[i],TURN_OFF); } // turn off all channels, can not have two LEDs on at same time
+        LEDsEnable[tmpI] = true;
+        Serial.printf("Channel %d, is on.\r\n", tmpI);
+      } else {                        // adjust only current working channel/pin
+        if ( isIO(Pin) ) {
+          for (int i=0; i<NUM_CHANNELS-1; i++) { if (isIO(LEDs[i])) { digitalWriteFast(LEDs[i],TURN_OFF); } } // turn off all channels, can not have two LEDs on at same time
           digitalWrite(Pin,  TURN_ON);
           Serial.printf("Pin %d is on.\n", Pin);
         } else {
@@ -759,49 +756,44 @@ void processInstruction() {
         PWM_Enabled = true;
       }
 
-    } else if ( command[0] == 's' ) {
+    } else if ( instruction[0] == 's' ) {
       // Load & Save Channel Settings////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
-        if ((tmpI >=0) && (tmpI < NUM_CHANNELS)) { // cehck boundaries      
-          chWorking   = tmpI;
-          Pin         = LEDs[chWorking];
-          PWM_Enabled = LEDsEnable[chWorking];
-          DutyCycle   = LEDsInten[chWorking];
-          PWM_Enabled = false;
-          if (isIO(Pin)) { digitalWrite(LEDs[chWorking],  TURN_OFF);}
+        if ((tmpI >=0) && (tmpI < NUM_CHANNELS)) { // check boundaries      
+          chWorking       = tmpI;
+          Pin             = LEDs[chWorking];
+          PWM_Enabled     = LEDsEnable[chWorking];
+          DutyCycle       = LEDsInten[chWorking];
           Serial.printf("Current Channel:     %2d\r\n",   chWorking);
           Serial.printf("Pin:                 %2d\r\n",   Pin);
           Serial.printf("PWM Duty:            %5.2f\r\n", DutyCycle);
-          Serial.printf("PWM Frequency: %11.2f\r\n",PWM_Frequency);
-          Serial.printf("Channel:       %s\r\n",    PWM_Enabled?" Enabled":"Disabled");
+          Serial.printf("PWM Frequency: %11.2f\r\n",      PWM_Frequency);
+          Serial.printf("Channel:       %s\r\n",          PWM_Enabled?" Enabled":"Disabled");
         } else { 
           Serial.println("Channel out of valid range.");   
         }
       }
 
-    } else if ( command[0] == 'S' ) { // save duty cycle and pin into selected channel
+    } else if ( instruction[0] == 'S' ) { // save duty cycle and pin into selected channel
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
         if ((tmpI >=0) && (tmpI < NUM_CHANNELS)) {
-          bool tempAutoAdvance   = AutoAdvance;  // can not change LED config while autoadvancing
-          AutoAdvance            = false;
-          chWorking              = tmpI;
-          LEDs[chWorking]        = Pin;
-          // do not auto enable/disable, user will need to do manually 
-          LEDsInten[chWorking]   = DutyCycle;
+          chWorking             = tmpI;
+          LEDs[chWorking]       = Pin;
+          LEDsEnable[chWorking] = PWM_Enabled;
+          LEDsInten[chWorking]  = DutyCycle;
           if (isIO(LEDs[chWorking])) {
             if (PWM_INV) { LEDsIntenI[chWorking] = int(( 100.0 - DutyCycle) / 100. * float(PWM_MaxValue) ); }
             else         { LEDsIntenI[chWorking] = int(          DutyCycle  / 100. * float(PWM_MaxValue) ); }
           } else         { LEDsIntenI[chWorking] = int(0); }
           Serial.printf("Channel %d saved.\r\n",chWorking);
-          AutoAdvance            = tempAutoAdvance; // restore autoadvance state
         } else { 
           Serial.printf("Channel %d out of valid range.\r\n",chWorking);
         }
       }
         
-    } else if ( command[0] == 't' ) {
+    } else if ( instruction[0] == 't' ) {
       // Set Channel Name ///////////////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
@@ -821,7 +813,7 @@ void processInstruction() {
         } else { Serial.println("Channel # out of valid range.");   }
       }
 
-    } else if ( command[0] == 'd' ) { // duty cycle
+    } else if ( instruction[0] == 'd' ) { // duty cycle
       // SET DUTY CYCLE /////////////////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpF = strtof(value, NULL);
@@ -834,7 +826,7 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'f' ) { // frequency
+    } else if ( instruction[0] == 'f' ) { // frequency
       // SET Frequency //////////////////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpF = strtof(value, NULL);
@@ -850,7 +842,7 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'r' ) { // resolution of pulse width modulation
+    } else if ( instruction[0] == 'r' ) { // resolution of pulse width modulation
       // SET Resolution ////////////////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
@@ -873,14 +865,19 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'p' ) { // choose pin
+    } else if ( instruction[0] == 'p' ) { // choose pin
       // Choose the pin //////////////////////////////////////////////////////////////
       if (strlen(value)>0) {          // adjust LED seetings
         tmpI = int(strtol(value, NULL, 10));
         if ( isIO(tmpI) ) {
           Pin = tmpI;
           pinMode(Pin, OUTPUT);
-          if (PWM_Enabled) { digitalWrite(Pin,  TURN_ON); } else { digitalWrite(Pin, TURN_OFF); }
+          if (PWM_Enabled) { 
+            for (int i=0; i<NUM_CHANNELS-1; i++) { if (isIO(LEDs[i])) { digitalWriteFast(LEDs[i],TURN_OFF); } } // turn all pins off
+            digitalWrite(Pin,  TURN_ON); } // turn new pin on
+          else { 
+            digitalWrite(Pin, TURN_OFF);  // turn new pin off
+          }
           Serial.printf("Changeing pin: %2d.\r\n", Pin);
           Serial.printf("Pin is: %s.\r\n", PWM_Enabled ? "on" : "off");
         } else {
@@ -888,14 +885,20 @@ void processInstruction() {
         }
       }
 
-    } else if ( command[0] == 'Z' ) { 
-      for (int i=0; i<NUM_CHANNELS-1; i++) { digitalWriteFast(LEDs[i],TURN_OFF); } 
+    } else if ( instruction[0] == 'Z' ) { 
+      for (int i=0; i<NUM_CHANNELS-1; i++) { if (isIO(LEDs[i])) { digitalWriteFast(LEDs[i],TURN_OFF); } } 
       Serial.println("Turned all channels off.");
 
-    } else if ( (command[0] == '?') || (command[0] == 'h') ) { // send HELP information
+    } else if ( (instruction[0] == '?') || (instruction[0] == 'h') ) { // send HELP information
       // HELP //////////////////////////////////////////////////////////////
       printHelp();
+    } else { 
+      Serial.println("Unknown instruction.");
     }
+    
+    value[0] = '\0'; 
+    instruction[0] = '\0'; 
+
   } // inputbuffer is not empty
 } // end process instruction
 
