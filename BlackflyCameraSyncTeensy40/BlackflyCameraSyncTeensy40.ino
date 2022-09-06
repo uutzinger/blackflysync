@@ -50,7 +50,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // *********************************************************************************************//
 
-#define VERSION "1.9.1"
+#define VERSION "1.9.2"
 #define EEPROM_VALID 0xF2
 #include <iterator>
 #include <algorithm>
@@ -746,6 +746,7 @@ void processInstruction() {
         LEDsEnable[tmpI] = true;
         Serial.printf("Channel %d, is on.\r\n", tmpI);
       } else {                        // adjust only current working channel/pin
+        setupPWM(PWM_Pin, PWM_Frequency, DutyCycle, PWM_Resolution);
         if ( isIO(Pin) ) {
           for (int i=0; i<NUM_CHANNELS-1; i++) { if (isIO(LEDs[i])) { digitalWriteFast(LEDs[i],TURN_OFF); } } // turn off all channels, can not have two LEDs on at same time
           digitalWrite(Pin,  TURN_ON);
